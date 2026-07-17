@@ -1,0 +1,46 @@
+notice_id,received_at,channel,supplier_id,item_number,notice_type,message_body
+DN-5000,2026-06-27 00:00:00,email,3022,SKU-EL-440,quality_hold,QA hold on inbound SKU-EL-440 pending inspection.
+DN-5001,2026-06-27 00:00:00,teams,3042,SKU-PK-770,supplier_delay,Supplier advises 19 day delay on SKU-PK-770.
+DN-5002,2026-07-08 00:00:00,teams,3017,SKU-CH-012,port_cutoff_miss,Container for SKU-CH-012 will miss the Friday port cut-off; next sailing in 6 days.
+DN-5003,2026-06-26 00:00:00,email,3021,SKU-RB-201,demand_spike,"Demand surge flagged for SKU-RB-201, exceeding safety stock."
+DN-5004,25/06/2026,email,3008,SKU-PK-770,port_cutoff_miss,Shipment for SKU-PK-770 will miss the port cut-off on 2026-07-10.
+DN-5005,2026-06-29 00:00:00,teams,3015,SKU-TX-330,demand_spike,"Demand surge flagged for SKU-TX-330, exceeding safety stock."
+DN-5006,2026-07-04 00:00:00,email,3034,SKU-CEM-101,quality_hold,QA hold on inbound SKU-CEM-101 pending inspection.
+DN-5007,2026-06-26 00:00:00,email,3017,SKU-RB-201,supplier_delay,Supplier advises 14 day delay on SKU-RB-201.
+DN-5008,2026-06-30 00:00:00,email,3038,SKU-RB-201,demand_spike,"Demand surge flagged for SKU-RB-201, exceeding safety stock."
+DN-5009,2026-07-15 00:00:00,email,3018,SKU-FS-055,quality_hold,QA hold on inbound SKU-FS-055 pending inspection.
+DN-5010,04/07/2026,email,3047,SKU-PL-220,quality_hold,QA hold on inbound SKU-PL-220 pending inspection.
+DN-5011,2026-07-04 00:00:00,email,3008,SKU-STL-014,demand_spike,"Demand surge flagged for SKU-STL-014, exceeding safety stock."
+DN-5012,14/07/2026,email,3040,SKU-CP-330,demand_spike,"Demand surge flagged for SKU-CP-330, exceeding safety stock."
+DN-5013,2026-07-07 00:00:00,teams,3043,SKU-CH-012,supplier_delay,Supplier advises 19 day delay on SKU-CH-012.
+DN-5014,2026-07-08 00:00:00,email,3003,SKU-WR-410,supplier_delay,Supplier advises 16 day delay on SKU-WR-410.
+DN-5015,2026-07-07 00:00:00,email,3041,SKU-AGG-220,demand_spike,"Demand surge flagged for SKU-AGG-220, exceeding safety stock."
+DN-5016,10/07/2026,email,3018,SKU-PK-770,quality_hold,QA hold on inbound SKU-PK-770 pending inspection.
+DN-5017,2026-06-30 00:00:00,teams,3028,SKU-CP-330,supplier_delay,Supplier advises 8 day delay on SKU-CP-330.
+DN-5018,25/06/2026,email,3003,SKU-WR-410,port_cutoff_miss,Shipment for SKU-WR-410 will miss the port cut-off on 2026-07-20.
+DN-5019,2026-07-04 00:00:00,email,3032,SKU-RM-330,port_cutoff_miss,Container for SKU-RM-330 will miss the Friday port cut-off; next sailing in 6 days.
+DN-5020,2026-06-29 00:00:00,email,3039,SKU-PL-220,quality_hold,QA hold on inbound SKU-PL-220 pending inspection.
+DN-5021,2026-06-26 00:00:00,teams,3022,SKU-WR-410,supplier_delay,Supplier advises 9 day delay on SKU-WR-410.
+DN-5022,09/07/2026,email,3021,SKU-CH-012,supplier_delay,Supplier advises 5 day delay on SKU-CH-012.
+DN-5023,2026-07-07 00:00:00,email,3005,SKU-CH-012,port_cutoff_miss,Shipment for SKU-CH-012 will miss the port cut-off on 2026-07-12.
+DN-5024,2026-07-14 00:00:00,email,3017,SKU-WR-410,quality_hold,QA hold on inbound SKU-WR-410 pending inspection.
+DN-5025,2026-07-12 00:00:00,email,3029,SKU-MT-101,supplier_delay,Supplier advises 6 day delay on SKU-MT-101.
+DN-5026,15/07/2026,email,3044,SKU-FS-055,demand_spike,"Demand surge flagged for SKU-FS-055, exceeding safety stock."
+DN-5027,2026-07-15 00:00:00,email,3016,SKU-RM-330,supplier_delay,Supplier advises 16 day delay on SKU-RM-330.
+DN-5028,2026-07-11 00:00:00,email,3031,SKU-RM-330,demand_spike,"Demand surge flagged for SKU-RM-330, exceeding safety stock."
+DN-5029,27/06/2026,email,3010,SKU-TX-330,supplier_delay,Supplier advises 7 day delay on SKU-TX-330.
+DN-5030,2026-07-07 00:00:00,email,3030,SKU-TX-330,supplier_delay,Supplier advises 8 day delay on SKU-TX-330.
+DN-5031,2026-07-13 00:00:00,email,3022,SKU-EL-440,quality_hold,QA hold on inbound SKU-EL-440 pending inspection.
+DN-5032,2026-07-14 00:00:00,email,3044,SKU-TC-090,quality_hold,QA hold on inbound SKU-TC-090 pending inspection.
+DN-5033,2026-07-15 00:00:00,email,3021,SKU-FS-055,port_cutoff_miss,Shipment for SKU-FS-055 will miss the port cut-off on 2026-07-20.
+DN-5034,2026-06-26 00:00:00,teams,3025,SKU-PK-770,supplier_delay,Supplier advises 7 day delay on SKU-PK-770.
+DN-5035,2026-07-06 00:00:00,email,3036,SKU-CEM-101,port_cutoff_miss,Shipment for SKU-CEM-101 will miss the port cut-off on 2026-07-10.
+DN-5036,04/07/2026,email,3037,SKU-TC-090,demand_spike,"Demand surge flagged for SKU-TC-090, exceeding safety stock."
+DN-5037,2026-07-14 00:00:00,teams,3011,SKU-AGG-220,demand_spike,"Demand surge flagged for SKU-AGG-220, exceeding safety stock."
+DN-5038,Jul 08 2026,email,3034,SKU-WR-410,supplier_delay,Supplier advises 19 day delay on SKU-WR-410.
+DN-5039,2026-07-02 00:00:00,email,3036,SKU-PK-770,demand_spike,"Demand surge flagged for SKU-PK-770, exceeding safety stock."
+DN-5040,2026-07-04 00:00:00,email,3022,SKU-PK-770,supplier_delay,Supplier advises 18 day delay on SKU-PK-770.
+DN-5041,2026-06-30 00:00:00,email,3042,SKU-MT-101,port_cutoff_miss,Shipment for SKU-MT-101 will miss the port cut-off on 2026-07-20.
+DN-5042,Jul 09 2026,teams,3025,SKU-CH-012,demand_spike,"Demand surge flagged for SKU-CH-012, exceeding safety stock."
+DN-5043,Jul 14 2026,email,3009,SKU-CEM-101,quality_hold,QA hold on inbound SKU-CEM-101 pending inspection.
+DN-5044,2026-07-03 00:00:00,email,3047,SKU-TX-330,port_cutoff_miss,Shipment for SKU-TX-330 will miss the port cut-off on 2026-07-12.

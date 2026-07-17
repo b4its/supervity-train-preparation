@@ -1,0 +1,10 @@
+Sheet,Description,Class
+suppliers,"Coupa supplier master. status, x_tier/x_sole_source custom fields",master
+contracts,"Coupa contracts. x_expedite_allowed, x_escalation_clause, x_penalty_terms",master
+purchase_order_headers,"Coupa PO header. po_number, supplier_id, status, need_by_date, po_total",transactional
+purchase_order_lines,"Coupa PO lines. item_number, quantity, need_by_date, status",transactional
+order_confirmations,"Supplier confirmations / ASN feed. status confirmed/delayed/at_risk, delay_reason",transactional
+inventory_positions,"ERP inventory snapshot. on_hand_qty, safety_stock, reorder_point",master
+demand_signals,ERP forecast vs actual demand (spikes live here),transactional
+disruption_notices,"Inbound disruption alerts (the trigger). notice_type, message_body",transactional
+SEEDED TRAP TYPES,Tier-2 supplier failure · demand spike beyond safety stock · port cut-off miss · expedite that breaches an escalation clause,note

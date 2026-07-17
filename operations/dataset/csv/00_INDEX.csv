@@ -1,0 +1,6 @@
+Workbook_Contents
+Autopilot Asia — Operations (Procurement Exception Commander) enterprise export
+System of origin: Coupa (procure-to-pay) with adjacent ERP inventory/demand feeds · Currency MYR
+"Sheets: suppliers, contracts, purchase_order_headers, purchase_order_lines, order_confirmations, inventory_positions, demand_signals, disruption_notices, Field_Dictionary"
+Fully synthetic. Import into your own procurement + inventory + signal channel + task tool.
+Judging runs on a separate hidden set; do not hardcode.
