@@ -10,7 +10,9 @@
 | Microsoft 365 / Outlook | **INPUT** (trigger emails) + **OUTPUT** (send task/assignment emails) | Email intake & task assignment | Microsoft Graph API access |
 | Slack workspace | **OUTPUT** only (notifications) | Notifications | Incoming webhook or Bot token |
 
-## Step 1 — Supabase Schema
+## Step 1 — Supabase Schema + Seed Data
+
+### 1a. Create Tables
 
 Run `supabase-action-tasks.sql` in your Supabase SQL Editor (service_role). This creates **all 10 tables**:
 
@@ -19,7 +21,7 @@ Run `supabase-action-tasks.sql` in your Supabase SQL Editor (service_role). This
 | 1 | `suppliers` | Reference | Supplier master (status, tier, sole source) |
 | 2 | `contracts` | Reference | Contract terms (expedite, escalation, penalty) |
 | 3 | `purchase_order_headers` | Reference | PO headers (supplier, total) |
-| 4 | `purchase_order_lines` | Reference | PO lines (item, value) |
+| 4 | `purchase_order_lines` | Reference | PO lines (item, line_total, need_by_date) |
 | 5 | `order_confirmations` | Reference | Confirmation status (confirmed/delayed/at_risk) |
 | 6 | `inventory_positions` | Reference | Stock levels (on hand, safety stock, cost) |
 | 7 | `demand_signals` | Reference | Demand data (actual vs forecast) |
@@ -29,7 +31,26 @@ Run `supabase-action-tasks.sql` in your Supabase SQL Editor (service_role). This
 
 Plus: `update_updated_at_column()` trigger function, indexes on all query columns, and RLS policies for `service_role`.
 
+> **All data columns in reference tables (1-8) are TEXT** — raw/anomalous input is stored as-is. The Dropbox Data Quality Steward (operator 02) normalizes types and validates values. Numeric columns in project tables (9-10) are typed because those are written by operators after validation.
+>
 > If you already have any of the reference tables (1-8) with different columns, drop the SQL-generated ones and keep your originals. The prompts only query the columns listed in each table definition above.
+
+### 1b. Seed Reference Data
+
+Run `supabase-seed.sql` in your Supabase SQL Editor (service_role) **after** `supabase-action-tasks.sql`. This populates all 8 reference tables from the `operations/dataset/csv/` CSVs:
+
+| Table | Rows | Source File |
+|-------|------|-------------|
+| `suppliers` | 50 | `suppliers.csv` |
+| `contracts` | 45 | `contracts.csv` |
+| `purchase_order_headers` | 80 | `purchase_order_headers.csv` |
+| `purchase_order_lines` | 171 | `purchase_order_lines.csv` |
+| `order_confirmations` | 130 | `order_confirmations.csv` |
+| `inventory_positions` | 16 | `inventory_positions.csv` |
+| `demand_signals` | 140 | `demand_signals.csv` |
+| `disruption_notices` | 45 | `disruption_notices.csv` |
+
+> Safe to re-run — the seed TRUNCATEs and re-inserts all rows. The data mirrors the CSVs in `operations/dataset/csv/`; regenerate `supabase-seed.sql` if those CSVs change.
 
 ## Step 2 — Configure Integrations in Supervity
 
@@ -47,6 +68,8 @@ Reads reference data (suppliers, contracts, PO, inventory, etc.) and writes new/
 | Service Role Key | `eyJ...` (from Supabase Settings → API → service_role) |
 
 > **Important**: The prompts use action names like `Query table 'suppliers' where ...`, not raw SQL. Supervity translates these into Supabase REST calls using the service_role key.
+>
+> **⚠️ 401 Unauthorized — common mistake**: Use the `service_role` key (starts `eyJ...`), **not** the `anon public` key. The `anon public` key returns 401 on all table queries because RLS is enabled. The `service_role` key bypasses RLS. Find it at **Supabase Dashboard → Settings → API → service_role** (not the Project URL / dashboard URL).
 
 ### 2b. Dropbox Integration (INPUT + OUTPUT)
 

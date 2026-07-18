@@ -23,14 +23,14 @@ $$ LANGUAGE plpgsql;
 -- -------------------------------------------------------------
 -- 1. suppliers
 -- Queried by: 02-DataQuality, 04-Compliance
--- Columns: id, status, x_tier, x_sole_source
+-- All data columns TEXT — raw/anomalous input cleaned by operator 02.
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS suppliers (
     id              SERIAL PRIMARY KEY,
     name            TEXT,
-    status          TEXT DEFAULT 'active',        -- active | inactive
-    x_tier          TEXT,                          -- tier-1 | tier-2 | tier-3
-    x_sole_source   BOOLEAN DEFAULT FALSE,
+    status          TEXT DEFAULT 'active',
+    x_tier          TEXT,
+    x_sole_source   TEXT DEFAULT 'false',
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -52,8 +52,8 @@ CREATE TABLE IF NOT EXISTS contracts (
     supplier_id         INTEGER NOT NULL REFERENCES suppliers(id),
     status              TEXT DEFAULT 'published',  -- published | expired
     x_expedite_allowed  TEXT,                      -- true | false | UNKNOWN
-    escalation_clause   TEXT,
-    penalty_terms       TEXT,
+    x_escalation_clause TEXT,
+    x_penalty_terms     TEXT,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -68,13 +68,13 @@ CREATE TRIGGER trg_contracts_updated_at
 -- -------------------------------------------------------------
 -- 3. purchase_order_headers
 -- Queried by: 02-DataQuality, 03-Impact
--- Columns: supplier_id, status, total
+-- All data columns TEXT — raw/anomalous input.
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS purchase_order_headers (
     id              SERIAL PRIMARY KEY,
     supplier_id     INTEGER NOT NULL REFERENCES suppliers(id),
-    status          TEXT,                          -- open | issued | closed | received
-    total           NUMERIC,
+    status          TEXT,
+    po_total        TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -89,14 +89,15 @@ CREATE TRIGGER trg_poh_updated_at
 -- -------------------------------------------------------------
 -- 4. purchase_order_lines
 -- Queried by: 02-DataQuality, 03-Impact
--- Columns: po_header_id, item_number, status, value
+-- All data columns TEXT — raw/anomalous input.
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS purchase_order_lines (
-    id              SERIAL PRIMARY KEY,
+    id              TEXT PRIMARY KEY,
     po_header_id    INTEGER NOT NULL REFERENCES purchase_order_headers(id),
     item_number     TEXT,
-    status          TEXT,                          -- open | issued | closed | received
-    value           NUMERIC,
+    status          TEXT,
+    line_total      TEXT,
+    need_by_date    TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -115,8 +116,8 @@ CREATE TRIGGER trg_pol_updated_at
 -- Columns: po_line_id, status (confirmed | delayed | at_risk)
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS order_confirmations (
-    id              SERIAL PRIMARY KEY,
-    po_line_id      INTEGER NOT NULL REFERENCES purchase_order_lines(id),
+    id              TEXT PRIMARY KEY,
+    po_line_id      TEXT NOT NULL REFERENCES purchase_order_lines(id),
     status          TEXT,                          -- confirmed | delayed | at_risk
     delay_reason    TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -133,16 +134,15 @@ CREATE TRIGGER trg_oc_updated_at
 -- -------------------------------------------------------------
 -- 6. inventory_positions
 -- Queried by: 02-DataQuality, 03-Impact
--- Columns: item_number, on_hand_qty, safety_stock,
---          reorder_point, unit_cost
+-- All data columns TEXT — raw/anomalous input.
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS inventory_positions (
     id              SERIAL PRIMARY KEY,
     item_number     TEXT NOT NULL,
-    on_hand_qty     NUMERIC,
-    safety_stock    NUMERIC,
-    reorder_point   NUMERIC,
-    unit_cost       NUMERIC,
+    on_hand_qty     TEXT,
+    safety_stock    TEXT,
+    reorder_point   TEXT,
+    unit_cost       TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -156,14 +156,14 @@ CREATE TRIGGER trg_ip_updated_at
 -- -------------------------------------------------------------
 -- 7. demand_signals
 -- Queried by: 02-DataQuality, 03-Impact
--- Columns: item_number, actual, forecast, period
+-- All data columns TEXT — raw/anomalous input.
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS demand_signals (
     id              SERIAL PRIMARY KEY,
     item_number     TEXT NOT NULL,
-    actual          NUMERIC,
-    forecast        NUMERIC,
-    period          DATE,
+    actual          TEXT,
+    forecast        TEXT,
+    period          TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -181,12 +181,13 @@ CREATE TRIGGER trg_ds_updated_at
 -- Columns: supplier_id, received_at, notice_type
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS disruption_notices (
-    id              SERIAL PRIMARY KEY,
+    notice_id       TEXT PRIMARY KEY,
+    received_at     TEXT,
     supplier_id     INTEGER NOT NULL REFERENCES suppliers(id),
-    received_at     TIMESTAMPTZ,
+    item_number     TEXT,
     notice_type     TEXT,                          -- supplier_delay | demand_spike
                                                    -- | port_cutoff_miss | quality_hold
-    notice_data     JSONB,
+    notice_data     TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
