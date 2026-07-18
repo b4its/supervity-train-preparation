@@ -15,24 +15,24 @@ This pack was designed after reviewing:
 
 | Official requirement | New-command implementation | Evidence file |
 |---|---|---|
-| AI Employee handles disruptions from impact through corrective action | Seven focused operators coordinated by one commander. | `08-procurement-exception-commander.md` |
-| Orchestrator coordinates at least two distinct operators | Seven distinct operators; intake, data quality, impact, policy, recovery, approval/Jira, and closeout. | `README.md` |
-| Parallel, branching, or stateful behavior | Impact Mapper and Contract Policy Guard run in parallel; LOW/MEDIUM/HIGH routes branch; `case_key` is a stateful idempotency key. | `08-procurement-exception-commander.md` |
-| Three live integrations across categories | Outlook channel, Dropbox file store, Jira work system. | `integrations/` |
-| Live exception to a human | Native Supervity Human Review pauses the run and Outlook sends the review notification. | `06-human-approval-and-jira.md` |
-| Handle messy data and record mismatches | Dedicated Data Quality Steward with raw preservation, quoted CSV parsing, normalized dates, ID joins, and explicit UNKNOWN values. | `02-dropbox-data-quality-steward.md` |
-| Do not hardcode to sample data | Header-based discovery, configurable policy inputs, no sample record IDs or names in operational rules. | `09-ai-policy-rules.md` |
+| AI Employee handles disruptions from impact through corrective action | Eight focused operators (including Data Loader) coordinated by one commander. | `08-procurement-exception-commander.md` |
+| Orchestrator coordinates at least two distinct operators | Eight distinct operators; data loader, intake, data quality, impact, policy, recovery, approval/Jira, and closeout. | `README.md` |
+| Parallel, branching, or stateful behavior | Data Loader runs once; Impact Mapper and Contract Policy Guard run in parallel per case; LOW/MEDIUM/HIGH routes branch; Supabase tracks lifecycle state. | `08-procurement-exception-commander.md` |
+| Five live integrations across categories | Outlook channel, Dropbox file store, Jira work system, Supabase structured queries + case state, Slack notification channel. | `integrations/` |
+| Live exception to a human | Native Supervity Human Review pauses the run; Outlook and Slack send the review notification. | `06-human-approval-and-jira.md` |
+| Handle messy data and record mismatches | Data Loader normalizes CSVs into Supabase; Data Quality Steward validates case against structured reference data. | `00-supabase-data-loader.md`, `02-dropbox-data-quality-steward.md` |
+| Do not hardcode to sample data | Configurable policy inputs, ID-driven queries against Supabase, no sample record IDs or names in operational rules. | `09-ai-policy-rules.md` |
 | Real quantified output | Direct line value at risk, broader PO exposure, time-to-triage, time-to-decision, time-to-recovery, and supported avoidable-cost estimate. | `03-impact-mapper.md`, `07-closeout-reporter.md` |
 | Configurable logic without code | Versioned Supervity decision-rule prompt with thresholds and five test scenarios. | `09-ai-policy-rules.md` |
 
-## Why the Old Pack Was Not Reused
+## Differences from the Old Pack
 
-The previous `call_command` workflow is not suitable for the requested Dropbox, Jira, and Outlook stack:
+The previous `call_command` workflow was rewritten to use the correct Supervity primitives:
 
-| Old assumption | Why it is a problem | New treatment |
+| Old approach | Problem | New treatment |
 |---|---|---|
-| Supabase is the system of record | Supabase is no longer one of the requested integrations. | Dropbox stores raw and generated evidence; Jira stores operational incident/action state. |
-| Slack buttons are the approval system | A chat message is not Supervity's native pause/resume Human Review governance primitive. | Native Human Review form is mandatory for material decisions; Outlook only notifies the reviewer. |
+| Supabase held all reference data | CSV data now lives in Dropbox (uploaded via Supervity), not in Supabase tables. | Dropbox stores all CSV source files; Supabase tracks only case lifecycle state. |
+| Slack buttons were the approval system | A chat message is not Supervity's native pause/resume Human Review governance primitive. | Native Human Review form is mandatory for material decisions; Slack only notifies, never decides. |
 | Operators automatically update POs or trigger supplier action | The permitted integrations do not expose Coupa or another procurement execution system. Claiming execution would be false. | Jira creates a human-owned procurement action task after approval. |
 | Cost avoided equals full PO value | PO header value and line value can overlap, creating double counting. | Direct line exposure is reported separately; avoidable cost is UNKNOWN unless a supported lower alternative cost exists. |
 | Inventory transfer cost is zero and lead time is two days | Neither claim is in the dataset. | Options are evidence-backed proposals with UNKNOWN operational values where no data exists. |
@@ -54,7 +54,7 @@ The previous `call_command` workflow is not suitable for the requested Dropbox, 
 
 The documentation specifies that a Human Review step pauses a workflow, generates a review form with context, and resumes only after a submitted decision. The new design therefore uses `is_human_input_step` in `06-human-approval-and-jira.md`.
 
-This matters because the Operations brief requires a genuine human exception. The workflow cannot treat an Outlook reply, Jira update, or timeout as implicit approval. On timeout, it escalates but does not auto-approve.
+This matters because the Operations brief requires a genuine human exception. The workflow cannot treat an Outlook reply, Slack reaction, Jira update, or timeout as implicit approval. On timeout, it escalates via Outlook, Slack, and Jira but never auto-approves.
 
 ## No-Fabrication Policy
 

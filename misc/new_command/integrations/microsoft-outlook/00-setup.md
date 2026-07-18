@@ -7,13 +7,13 @@ Use Outlook as a live exception channel, approval-notification channel, and stak
 ## Complete Before Building
 
 1. Connect Microsoft Outlook in `Settings -> Integrations` with least-privilege read access to the dedicated intake mailbox/folder and send access from the approved operations mailbox.
-2. Create an Outlook folder called `Procurement Exceptions`.
-3. Route test disruption emails to that folder. Use a subject containing one of: `Disruption`, `Supplier Delay`, `Demand Spike`, `Port Cut-off`, or `Quality Hold`.
+2. Use the existing Outlook folder named `procurement_folder`.
+3. Route test disruption emails to `procurement_folder`. Use a subject containing one of: `Disruption`, `Supplier Delay`, `Demand Spike`, `Port Cut-off`, or `Quality Hold`.
 4. Create and store these workflow environment variables in Supervity, not in prompts:
    - `PROCUREMENT_COMMANDER_EMAIL`
    - `PROCUREMENT_TEAM_EMAIL`
    - `PROCUREMENT_MANAGER_EMAIL`
-   - `OUTLOOK_INTAKE_FOLDER`
+    - `OUTLOOK_INTAKE_FOLDER` set to `procurement_folder`
 5. Confirm Outlook can send an internal test notification to the commander.
 
 ## Accepted Intake Fields

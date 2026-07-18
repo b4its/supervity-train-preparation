@@ -3,7 +3,7 @@
 ```text
 Outcome: Turn each new procurement disruption email in the configured Outlook folder into one deduplicated, traceable case brief that can be investigated without losing the original message.
 
-Use only these connected integrations: Microsoft Outlook, Dropbox, and Jira. Use Outlook as the live trigger and Dropbox as the source-data and evidence repository. Do not use local files, a spreadsheet on the computer, Supabase, Slack, or an unconnected tool.
+Use only these connected integrations: Microsoft Outlook, Dropbox, Jira, Supabase, and Slack. Use Outlook as the live trigger and Dropbox as the source-data and evidence repository. Do not use local files, a spreadsheet on the computer, or an unconnected tool.
 
 Inputs and constraints:
 - Watch the configured Outlook folder for messages whose subject or body indicates supplier delay, demand spike, port cut-off miss, quality hold, or a procurement exception.
@@ -15,6 +15,7 @@ Inputs and constraints:
 - Create case_key as notice_id when it exists. Otherwise create a deterministic key from normalized received timestamp, supplier_id, item_number, and notice_type.
 - Before opening a case, search Jira and Dropbox cases/ for the same case_key. If found, add an Outlook-message reference to the existing record and stop; do not create a duplicate incident.
 - Create a structured intake artifact at /Procurement-Exception-Commander/cases/CASE-<case_key>.json. It must include raw and normalized values, data-quality flags, Outlook message reference, and status INTAKEN.
+- Insert a corresponding row into Supabase disruption_incidents table with case_key, status 'intaken', received_at, dropbox_case_path, and all extracted notice fields. Use UPSERT on case_key so the same case is not duplicated.
 - Do not score severity, choose a recovery action, create a supplier order, or email external parties.
 
 Return exactly this concise structured result:
@@ -24,7 +25,8 @@ Return exactly this concise structured result:
   "notice": {"notice_id":"...","supplier_id":"...","item_number":"...","notice_type":"...","received_at_raw":"...","received_at_normalized":"...","delay_days":null,"message_body":"..."},
   "data_quality_flags": [],
   "dropbox_case_path": "...",
-  "next_action": "RUN_DATA_QUALITY_STEWARD"
+  "next_action": "RUN_DATA_QUALITY_STEWARD",
+  "supabase_inserted": true
 }
 
 Name this operator: Outlook Disruption Intake.

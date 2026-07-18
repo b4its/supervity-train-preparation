@@ -1,10 +1,12 @@
 # Dropbox Procurement Exception Commander
 
-This prompt pack replaces the Supabase and Slack assumptions in `misc/call_command/` with the requested live integrations:
+This prompt pack extends `misc/call_command/` by adding Dropbox, Jira, and Outlook as primary integrations alongside Supabase and Slack:
 
 - Dropbox: immutable source-data repository and case-artifact store.
 - Microsoft Outlook: disruption intake, approval notification, and stakeholder notification.
 - Jira: durable incident record, execution queue, escalation record, and audit trail.
+- Supabase: case-state machine for lifecycle tracking (CSV source data lives in Dropbox).
+- Slack: supplementary notification and alert channel alongside Outlook.
 - Supervity Human Review: the mandatory human-in-command approval gate.
 
 ## Why This Design
@@ -12,17 +14,17 @@ This prompt pack replaces the Supabase and Slack assumptions in `misc/call_comma
 The official Operations brief requires a channel, a system of record, a real exception routed to a person, multiple distinct operators, and an orchestrator that uses parallelism, branching, retry behavior, and escalation. This pack provides all of them without treating a local CSV as a live integration or pretending Dropbox is a relational database.
 
 | Requirement | Implementation |
-|---|---|
-| Channel | Outlook receives exception emails and sends updates. |
-| System of record | Dropbox holds the supplied enterprise export and generated case artifacts; Jira holds the live incident/work record. |
-| Human loop | A native Supervity Human Review step pauses every high-risk case. Outlook delivers the review notification. |
+|---|---|---|
+| Channel | Outlook receives exception emails and sends updates; Slack supplements with alerts. |
+| System of record | Dropbox stores raw and generated evidence; Jira holds the live incident/work record; Supabase tracks case lifecycle state. |
+| Human loop | A native Supervity Human Review step pauses every high-risk case. Outlook and Slack deliver the review notification. |
 | Distinct operators | Intake, data quality, impact, compliance, recovery planning, approval/execution, and closeout. |
 | Parallel work | Impact and compliance run in parallel after data quality validation. |
-| Business outcome | Jira and the final report record time-to-triage, time-to-decision, time-to-recovery, risk value, and estimated avoidable cost. |
+| Business outcome | Jira, Supabase, and the final report record time-to-triage, time-to-decision, time-to-recovery, risk value, and estimated avoidable cost. |
 
 ## Required Dropbox Layout
 
-Create this layout before building or running the Auto App. Do not rename the eight source CSV files.
+Upload the eight CSV files into Supervity. They are stored in Dropbox and read from there by the operators. Create this layout before building or running the Auto App. Do not rename the eight source CSV files.
 
 ```text
 /Procurement-Exception-Commander/
@@ -49,20 +51,23 @@ Create this layout before building or running the Auto App. Do not rename the ei
 
 ## Build Order
 
-1. Complete the setup checklists under `integrations/`.
-2. Create Operators `01` through `07` in order and test each one with a single disruption.
-3. Create `08-procurement-exception-commander.md` only after the operators are saved with the requested names.
-4. Configure the native Human Review step for the procurement commander or backup approver.
-5. Run three evidence cases: safe/low, recoverable/medium, and contract/sole-source/high.
+1. Complete the setup checklists under `integrations/` (Dropbox, Jira, Outlook, Supabase, Slack).
+2. Run `integrations/supabase/schema.sql` in Supabase SQL Editor.
+3. Create Operator `00-supabase-data-loader.md` (Supabase Data Loader) — run it once to fill Supabase reference tables from Dropbox CSVs.
+4. Create Operators `01` through `07` in order and test each one with a single disruption.
+5. Create `08-procurement-exception-commander.md` only after the operators are saved with the requested names.
+6. Configure the native Human Review step for the procurement commander or backup approver.
+7. Run three evidence cases: safe/low, recoverable/medium, and contract/sole-source/high.
 
 ## Operator Names
 
 | File | Saved operator name | Primary responsibility |
 |---|---|---|
+| `00-supabase-data-loader.md` | Supabase Data Loader | Load CSVs from Dropbox into Supabase tables (prerequisite). |
 | `01-outlook-disruption-intake.md` | Outlook Disruption Intake | Read and deduplicate incoming exception notices. |
-| `02-dropbox-data-quality-steward.md` | Dropbox Data Quality Steward | Validate, normalize, and preserve source data. |
-| `03-impact-mapper.md` | Procurement Impact Mapper | Calculate operational and financial blast radius. |
-| `04-contract-policy-guard.md` | Contract Policy Guard | Detect contract, supplier, and expedite restrictions. |
+| `02-dropbox-data-quality-steward.md` | Dropbox Data Quality Steward | Validate case against Supabase reference data. |
+| `03-impact-mapper.md` | Procurement Impact Mapper | Calculate operational and financial blast radius via Supabase queries. |
+| `04-contract-policy-guard.md` | Contract Policy Guard | Detect contract, supplier, and expedite restrictions via Supabase. |
 | `05-recovery-planner.md` | Recovery Options Planner | Propose evidence-backed recovery options only. |
 | `06-human-approval-and-jira.md` | Human Approval and Jira Execution | Pause for native approval and create/update Jira. |
 | `07-closeout-reporter.md` | Recovery Closeout Reporter | Notify, measure, and archive the completed case. |
@@ -89,12 +94,14 @@ If a required fact is missing, mark it `UNKNOWN`, explain the data gap, and rout
 
 For each run, show:
 
-1. Outlook trigger or manual input.
-2. Dropbox source read and generated case artifact.
-3. Parallel Impact Mapper and Contract Policy Guard steps in the Auto Manager Console.
-4. Jira incident creation with impact, options, and link to the Dropbox case artifact.
-5. Native Supervity Human Review for a high-risk case.
-6. Outlook completion notification and quantified metrics.
+1. Supabase Data Loader run (prerequisite — CSV-to-Supabase load summary).
+2. Outlook trigger or manual input.
+3. Dropbox case artifact and Supabase disruption_incidents row showing case state.
+4. Parallel Impact Mapper and Contract Policy Guard steps in the Auto Manager Console.
+5. Jira incident creation with impact, options, and link to the Dropbox case artifact.
+6. Native Supervity Human Review for a high-risk case.
+7. Slack notification for review requests and status updates.
+8. Outlook completion notification and quantified metrics.
 
 ## Relevant Supervity Capabilities
 

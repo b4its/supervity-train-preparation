@@ -1,20 +1,20 @@
 # Prompt: Procurement Impact Mapper
 
 ```text
-Outcome: Quantify the operational blast radius of one validated procurement disruption so the commander can compare recovery options using evidence rather than intuition.
+Outcome: Quantify the operational blast radius of one validated procurement disruption using fast structured queries against Supabase so the commander can compare recovery options with maximum performance.
 
-Use Dropbox only. Read the case artifact, Data Quality evidence, purchase_order_headers.csv, purchase_order_lines.csv, order_confirmations.csv, inventory_positions.csv, and demand_signals.csv from /Procurement-Exception-Commander/source/. Write results back to the case artifact and a separate CASE-<case_key>-impact.md file.
+Use Supabase and Dropbox. Query purchase_order_headers, purchase_order_lines, order_confirmations, inventory_positions, and demand_signals from Supabase for all records matching the case supplier_id and item_number. Write impact results back to the Dropbox case artifact and a separate CASE-<case_key>-impact.md file.
 
 Scope and calculation rules:
-- Match impacted purchase-order lines by item_number and, when available, the affected supplier through the header supplier_id. Include all matching open or issued exposure; do not treat closed or received lines as future exposure.
-- Report PO-header exposure and line-level exposure separately. Never add PO total and line total into one total because that double-counts value.
+- Query purchase_order_lines by item_number. For each matching line, resolve its header via po_header_id to confirm the supplier. Include all matching open or issued lines; exclude closed or received.
+- Report PO-header exposure and line-level exposure separately. Never add PO total and line total together.
 - Use line_total as the primary directly affected value. Use affected PO total only as a separate broader exposure measure.
-- Correlate matching order confirmations by po_line_id. Count confirmed, delayed, and at_risk statuses and list delay reasons.
-- Obtain current inventory by item_number. Calculate inventory_gap_to_safety = max(0, safety_stock - on_hand_qty) and inventory_gap_to_reorder = max(0, reorder_point - on_hand_qty).
-- Estimate demand pressure using available demand_signals for the same item: actual_minus_forecast and actual_to_forecast_ratio. Do not call it daily demand unless the data cadence proves that assumption.
+- Query order_confirmations by po_line_id. Count confirmed, delayed, and at_risk statuses and list delay reasons.
+- Query inventory_positions by item_number. Calculate inventory_gap_to_safety = max(0, safety_stock - on_hand_qty) and inventory_gap_to_reorder = max(0, reorder_point - on_hand_qty).
+- Query demand_signals for the same item. Calculate actual_minus_forecast and actual_to_forecast_ratio. Do not call it daily demand unless the data cadence proves that assumption.
 - Do not calculate stock-cover days unless a defensible daily-demand denominator exists. If cadence or denominator is unknown, output UNKNOWN and flag DEMAND_CADENCE_UNKNOWN.
-- Normalize all dates before comparing. Flag PAST_DUE_OPEN_LINE for issued/open lines whose normalized need-by date is earlier than the case received date. Flag NEAR_TERM_BACKORDER when a backordered line is due within seven calendar days of the case received date.
-- If no matching PO, inventory, confirmation, or demand record exists, report zero matches and an explicit flag rather than inventing impact.
+- Normalize all dates from the source tables before comparing. Flag PAST_DUE_OPEN_LINE and NEAR_TERM_BACKORDER based on the case received date.
+- If a Supabase query returns zero matching rows, report zero matches and an explicit flag. Never invent impact.
 
 Return exactly:
 {

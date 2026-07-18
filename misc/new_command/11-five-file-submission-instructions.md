@@ -18,11 +18,11 @@ This keeps the submission within the limit while retaining the mandatory Orchest
 
 | Submission file | Combine from the detailed pack | Why it belongs together |
 |---|---|---|
-| `01-integration-and-data-setup.md` | `integrations/dropbox/00-setup.md`, `integrations/jira/00-setup.md`, `integrations/microsoft-outlook/00-setup.md` | All integration prerequisites must be complete before a workflow can run. |
-| `02-intake-and-data-quality.md` | `01-outlook-disruption-intake.md`, `02-dropbox-data-quality-steward.md` | Both are the safe entry gate: receive, deduplicate, validate, normalize, and preserve evidence. |
-| `03-parallel-impact-and-compliance.md` | `03-impact-mapper.md`, `04-contract-policy-guard.md` | These are separate Operators but execute in parallel after validation. |
-| `04-recovery-policy-approval-and-jira.md` | `05-recovery-planner.md`, `06-human-approval-and-jira.md`, `09-ai-policy-rules.md` | This represents decision-making, configurable routing, Human Review, and accountable execution. |
-| `05-commander-test-and-demo.md` | `08-procurement-exception-commander.md`, `07-closeout-reporter.md`, `10-live-demo-test-matrix.md` | The final orchestration, closeout, test evidence, and demo sequence must be reviewed together. |
+| `01-integration-and-data-setup.md` | `integrations/dropbox/00-setup.md`, `integrations/jira/00-setup.md`, `integrations/microsoft-outlook/00-setup.md`, `integrations/supabase/00-setup.md`, `integrations/slack/00-setup.md`, `integrations/supabase/schema.sql` | All integration prerequisites plus the database schema. |
+| `02-data-loader-and-intake.md` | `00-supabase-data-loader.md`, `01-outlook-disruption-intake.md`, `02-dropbox-data-quality-steward.md` | Data Loader fills reference tables; intake and quality validate each case against Supabase. |
+| `03-parallel-impact-and-compliance.md` | `03-impact-mapper.md`, `04-contract-policy-guard.md` | Separate Operators that execute in parallel after validation. |
+| `04-recovery-policy-approval-and-jira.md` | `05-recovery-planner.md`, `06-human-approval-and-jira.md`, `09-ai-policy-rules.md` | Decision-making, configurable routing, Human Review, and accountable execution. |
+| `05-commander-test-and-demo.md` | `08-procurement-exception-commander.md`, `07-closeout-reporter.md`, `10-live-demo-test-matrix.md` | Final orchestration, closeout, test evidence, and demo sequence. |
 
 ## Do Not Submit Separately
 
@@ -38,9 +38,7 @@ Their contents are already represented in the five consolidated submission files
 
 ## Important: Do Not Upload the Old Pack
 
-Do not submit files from `misc/call_command/` for this Dropbox, Jira, and Outlook solution. That directory remains unchanged as historical reference, but it assumes Supabase and Slack.
-
-Use only content derived from `misc/new_command/`.
+Do not submit files from `misc/call_command/`. That directory is preserved as historical reference with a different architecture (Slack buttons for approval, no Dropbox file store, no Outlook channel). Use only content derived from `misc/new_command/`.
 
 ## Required Content Checklist for the Five Files
 
@@ -49,6 +47,8 @@ Before uploading, ensure that the five consolidated files still explicitly conta
 - [ ] Dropbox is the live source-data and evidence repository.
 - [ ] Microsoft Outlook is the disruption intake and notification channel.
 - [ ] Jira is the live incident and human-action work system.
+- [ ] Supabase is the case-state machine for lifecycle tracking.
+- [ ] Slack is the supplementary notification and alert channel.
 - [ ] The workflow has at least two distinct Operators, not one mega-agent.
 - [ ] `Procurement Impact Mapper` and `Contract Policy Guard` run in parallel.
 - [ ] Data joins use IDs, not supplier names.
@@ -79,11 +79,11 @@ Upload the files in this sequence if the portal preserves ordering:
 | Activity | Use |
 |---|---|
 | Build each Supervity Operator | The detailed operator prompts in `01` through `07`, then `09`, then `08`. |
-| Configure integrations | The three detailed setup files under `integrations/`. |
+| Configure integrations | The five detailed setup files under `integrations/`. |
 | Test and record evidence | `10-live-demo-test-matrix.md`. |
 | Upload under a five-file limit | The five consolidated documents listed above. |
 
-Do not try to build one giant Supervity Operator just because the submission has a five-file limit. The limit applies to submitted artifacts, not to the internal Operator architecture. The final Auto App must still contain multiple distinct Operators coordinated by the Commander Orchestrator.
+Do not try to build one giant Supervity Operator just because the submission has a five-file limit. The limit applies to submitted artifacts, not to the internal Operator architecture. The final Auto App must still contain multiple distinct Operators (eight including the Data Loader) coordinated by the Commander Orchestrator.
 
 ## Next Step
 
