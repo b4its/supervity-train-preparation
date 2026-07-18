@@ -87,12 +87,14 @@ Shared folder link as root (`DROPBOX_ROOT_PATH`). The workflow **reads** existin
 
 ### Supabase (Input + Output)
 
-| Direction | Tables |
-|-----------|--------|
-| **INPUT** (read-only reference data) | `suppliers`, `contracts`, `purchase_order_headers`, `purchase_order_lines`, `order_confirmations`, `inventory_positions`, `demand_signals`, `disruption_notices` |
-| **OUTPUT** (write new/updated rows) | `disruption_incidents` (case status, metrics), `action_tasks` (task assignments — replaces Jira) |
+All 10 tables are created by `supabase-action-tasks.sql`:
 
-See `supabase-action-tasks.sql` for the `action_tasks` table definition.
+| Group | Tables | Direction |
+|-------|--------|-----------|
+| **Reference** (8 tables) | `suppliers`, `contracts`, `purchase_order_headers`, `purchase_order_lines`, `order_confirmations`, `inventory_positions`, `demand_signals`, `disruption_notices` | **INPUT** (read-only) |
+| **Project** (2 tables) | `disruption_incidents` (case status + metrics), `action_tasks` (task queue — replaces Jira) | **OUTPUT** (write new/updated rows) |
+
+See `supabase-action-tasks.sql` for full schema.
 
 ## Setup
 

@@ -12,45 +12,24 @@
 
 ## Step 1 — Supabase Schema
 
-Run `supabase-action-tasks.sql` in your Supabase SQL Editor.
+Run `supabase-action-tasks.sql` in your Supabase SQL Editor (service_role). This creates **all 10 tables**:
 
-```sql
-CREATE TABLE IF NOT EXISTS action_tasks (
-    id              SERIAL PRIMARY KEY,
-    case_key        TEXT UNIQUE NOT NULL,
-    task_type       TEXT DEFAULT 'procurement_action',
-    summary         TEXT,
-    description     TEXT,
-    assignee        TEXT DEFAULT 'procurement_owner',
-    priority        TEXT DEFAULT 'Medium',
-    status          TEXT DEFAULT 'pending',
-    decision        TEXT,
-    reviewer        TEXT,
-    completed_at    TIMESTAMPTZ,
-    created_at      TIMESTAMPTZ DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ DEFAULT NOW()
-);
+| # | Table | Type | Purpose |
+|---|-------|------|---------|
+| 1 | `suppliers` | Reference | Supplier master (status, tier, sole source) |
+| 2 | `contracts` | Reference | Contract terms (expedite, escalation, penalty) |
+| 3 | `purchase_order_headers` | Reference | PO headers (supplier, total) |
+| 4 | `purchase_order_lines` | Reference | PO lines (item, value) |
+| 5 | `order_confirmations` | Reference | Confirmation status (confirmed/delayed/at_risk) |
+| 6 | `inventory_positions` | Reference | Stock levels (on hand, safety stock, cost) |
+| 7 | `demand_signals` | Reference | Demand data (actual vs forecast) |
+| 8 | `disruption_notices` | Reference | Historical disruption records |
+| 9 | `disruption_incidents` | **Project** | Case state machine + metrics |
+| 10 | `action_tasks` | **Project** | Human-action task queue (replaces Jira) |
 
-CREATE INDEX idx_action_tasks_case_key ON action_tasks(case_key);
-CREATE INDEX idx_action_tasks_status   ON action_tasks(status);
-```
+Plus: `update_updated_at_column()` trigger function, indexes on all query columns, and RLS policies for `service_role`.
 
-Also ensure these tables exist (reference data): `suppliers`, `contracts`, `purchase_order_headers`, `purchase_order_lines`, `order_confirmations`, `inventory_positions`, `demand_signals`, `disruption_notices`, `disruption_incidents`.
-
-If `disruption_incidents` does not exist, create it:
-
-```sql
-CREATE TABLE IF NOT EXISTS disruption_incidents (
-    id              SERIAL PRIMARY KEY,
-    case_key        TEXT UNIQUE NOT NULL,
-    status          TEXT DEFAULT 'intaken',
-    received_at     TIMESTAMPTZ,
-    notice_data     JSONB,
-    created_at      TIMESTAMPTZ DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ DEFAULT NOW()
-);
-CREATE INDEX idx_disruption_incidents_case_key ON disruption_incidents(case_key);
-```
+> If you already have any of the reference tables (1-8) with different columns, drop the SQL-generated ones and keep your originals. The prompts only query the columns listed in each table definition above.
 
 ## Step 2 — Configure Integrations in Supervity
 
