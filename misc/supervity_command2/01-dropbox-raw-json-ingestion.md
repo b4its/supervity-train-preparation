@@ -84,7 +84,7 @@ Do not skip step 1. The second insert needs the parent row to exist first.
     Automated Intake Workflow
     ```
 
-    **3b. Slack** — Send a verification message to `PROCUREMENT_SLACK_CHANNEL_ID` with the same Native Human Review URL as a clickable link. The user must be able to open the review form and choose Approve or Reject directly from the Slack message. Use this exact message template:
+    **3b. Slack** — Send a verification message to `PROCUREMENT_SLACK_CHANNEL_ID`. Use the Slack `Send message` action's **text** field (not blocks, not rich preview). Paste the EXACT text below — do not rephrase, shorten, or reformat. Replace `<DROPBOX_ROOT_PATH>` and `<NATIVE_HUMAN_REVIEW_URL>` with actual values:
 
     ```
     📎 File Upload Verification Required
@@ -93,11 +93,13 @@ Do not skip step 1. The second insert needs the parent row to exist first.
 
     After all required files are uploaded, open the link below, then choose Approve or Reject in the Supervity form:
 
-    🔗 Open Verification Form: <NATIVE_HUMAN_REVIEW_URL>
+    Open Verification Form: <NATIVE_HUMAN_REVIEW_URL>
 
     • Approve = files are uploaded → start importing
     • Reject = files not yet complete → Slack reminder sent, workflow stays waiting
     ```
+
+    Make sure the URL `<NATIVE_HUMAN_REVIEW_URL>` is pasted as plain text in the message, not as a hyperlink button. Slack will auto-detect it as a clickable link. Do not use Slack's "link button" or "block" features.
 
 4. **Single conditional branch point.** After the Native Human Review returns a decision, create exactly ONE condition node in the workflow with two exclusive paths:
    - **Path A (decision equals `Approve - Files Uploaded`):** Proceed to rule 5 (inspect Dropbox and import files).
