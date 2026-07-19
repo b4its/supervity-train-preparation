@@ -6,7 +6,7 @@ Minimal Dropbox-first workflow with exactly **2 operators** and **1 orchestrator
 
 | # | Saved Operator Name | Prompt File |
 |---|---|---|
-| 01 | `Dropbox Raw JSON Ingestion` | `01-dropbox-raw-json-ingestion.md` |
+| 01 | `Dropbox Source File Intake and Import` | `01-dropbox-raw-json-ingestion.md` |
 | 02 | `Severity Data Cleaner` | `02-severity-data-cleaner.md` |
 | 03 | `Supervity Command 2 Orchestrator` | `03-command2-orchestrator.md` |
 
@@ -27,13 +27,17 @@ Minimal Dropbox-first workflow with exactly **2 operators** and **1 orchestrator
 |---|---|
 | 01 | Dropbox, Supabase, Slack, Native Human Review; Outlook is optional for email-triggered input |
 | 02 | Dropbox, Supabase, Slack, Microsoft Outlook, Native Human Review |
-| 03 | Native subworkflow calls to Operators 01 and 02 |
+| 03 | Popup-linked native sub-operator calls to Operators 01 and 02 |
+
+The integrations must be authenticated and attached to each Saved Operator in the Supervity UI. Prompts intentionally do not include Supabase URLs, service-role keys, Slack tokens, or API endpoints. Operators must use the attached native connections, not SDKs or custom HTTP calls.
+
+Create, test, and save Operators 01 and 02 before creating the orchestrator. In the orchestrator editor, select each sub-operator through Supervity's popup when prompted by the `Call the sub-operator ...` instructions. Do not manually reference workflow names/IDs or map child inputs and outputs yourself.
 
 ## Required Environment Variables
 
 ```text
 DROPBOX_ROOT_PATH
-PROCUREMENT_SLACK_CHANNEL
+PROCUREMENT_SLACK_CHANNEL_ID
 PROCUREMENT_TEAM_EMAIL
 PROCUREMENT_MANAGER_EMAIL
 ```
@@ -52,21 +56,25 @@ procurement_predictions
 ## Dropbox Flow
 
 ```text
-<DROPBOX_ROOT_PATH>/incoming/                         # Human uploads JSON here
-<DROPBOX_ROOT_PATH>/cases/CASE-<case_key>/input/      # Immutable copy of uploaded JSON
+<DROPBOX_ROOT_PATH>/incoming/                         # Human uploads JSON or CSV here
+<DROPBOX_ROOT_PATH>/cases/CASE-<case_key>/input/      # Immutable copy of uploaded source
 <DROPBOX_ROOT_PATH>/cases/CASE-<case_key>/output/
 ```
 
-1. Human uploads dirty `.json` source file(s) to `incoming/`, without entering a case key.
-2. Operator 01 generates a case key from the uploaded JSON and creates the case folders.
-3. Operator 01 copies the source unchanged to the case `input/` folder and into `raw_data_imports`.
-4. Operator 02 writes normalized data to `clean_procurement_records`.
-5. Operator 02 cleans data, calculates severity, and writes the evidence-backed result to `procurement_predictions`.
-6. Both operators send Slack audit messages. Slack cannot approve anything.
+1. Operator 01 sends Slack upload instructions, creates the Native Human Review, then sends Outlook verification with a `Verify Upload in Supervity` button linked to that review before checking Dropbox.
+2. Operator 01 waits in the same running workflow at Native Human Review. The user uploads all `.json` and/or `.csv` sources to `incoming/`, without entering case keys, then chooses `Approve - Files Uploaded`. Reject keeps the workflow waiting.
+3. The same workflow resumes; Operator 01 reads every supported new source, generates case keys, creates case folders, and writes raw imports to `raw_data_imports`.
+4. Operator 02 cleans every imported JSON document and CSV row into `clean_procurement_records`.
+5. Operator 02 calculates severity, writes evidence-backed predictions to `procurement_predictions`, and sends `BATCH_PREDICTED_AND_AUDITED` to Slack.
+6. Slack never confirms uploads or approves decisions; Native Human Review is the confirmation/approval channel.
 
 ## Dummy Inputs
 
 Read [`input-guide.md`](input-guide.md) before testing manually. It contains ready-to-paste dummy input for all three saved operators, the required Dropbox source JSON, and a field-by-field explanation of which values are entered by the user versus generated automatically.
+
+## Slack Channel ID
+
+Set `PROCUREMENT_SLACK_CHANNEL_ID` to the Slack channel/conversation ID, for example `C0123456789`. Do not use a display name such as `procurement-alerts` or `#procurement-alerts`.
 
 ## Dataset Coverage
 

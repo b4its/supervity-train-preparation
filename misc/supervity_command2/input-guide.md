@@ -1,77 +1,56 @@
 # Command2 Input Guide
 
-Gunakan panduan ini saat menjalankan Saved Operator secara manual di Supervity. Untuk alur normal, jalankan Operator 03 saja; Operator 03 meneruskan output Operator 01 ke Operator 02 secara otomatis.
+The normal workflow requires one manual submission only: start Operator 03 once, upload all source files when requested, and answer the pending Native Human Review form. Supervity resumes the same execution and automatically passes the imported batch from Operator 01 to Operator 02.
 
-## Shared Dummy Source File
+## Build Order In Supervity
 
-Sebelum menjalankan Operator 01 atau Operator 03, upload file berikut sebagai `<DROPBOX_ROOT_PATH>/incoming/supplier-evidence.json`.
+1. Create, test, and save `Dropbox Source File Intake and Import`.
+2. Create, test, and save `Severity Data Cleaner` using a real imported batch from Operator 01.
+3. Create `Supervity Command 2 Orchestrator` only after both sub-operators are saved.
+4. Type the `Call the sub-operator ...` instructions from the orchestrator prompt. Select each exact saved operator in the Supervity popup and allow automatic input/output mapping.
+5. Do not enter workflow IDs, run IDs, `{{...}}` expressions, or manual JSON mappings.
 
-```json
-{
-  "notice_id": "DEMO-5000",
-  "supplier_id": "3022 ",
-  "item_number": " sku-el-440",
-  "notice_type": "QUALITY HOLD",
-  "received_at": "19/07/2026",
-  "po_line_id": "90005-1",
-  "line_total": "29,197.41",
-  "on_hand_qty": "811 units",
-  "safety_stock": "354",
-  "comment": "QA hold pending inspection; source retained unchanged."
-}
-```
+## Operator 01: Dropbox Source File Intake and Import
 
-Operator 01 otomatis menghasilkan `case_key` dari `notice_id`. Untuk data ini, hasilnya adalah `DEMO-5000` dan folder casenya adalah `cases/CASE-DEMO-5000/`.
-
-## Operator 01: Dropbox Raw JSON Ingestion
-
-Pastikan source file sudah berada di folder `incoming/`. Jangan isi atau membuat `case_key`; tidak ada field tersebut di input Operator 01.
+For independent testing only, paste this input once:
 
 ```json
 {
-  "raw_notice_text": "NOTICE_ID: DEMO-5000\nRECEIVED: 2026-07-19 10:30\nSUPPLIER_ID: 3022\nITEM: SKU-EL-440\nTYPE: quality_hold\nMESSAGE: QA hold on inbound SKU-EL-440 pending inspection.",
+  "raw_notice_text": "NOTICE_ID: DEMO-5000\nSUPPLIER_ID: 3022\nITEM: SKU-EL-440\nTYPE: quality_hold",
   "received_at": "2026-07-19T10:30:00+08:00",
   "trigger_type": "manual"
 }
 ```
 
-Minimal input jika semua informasi sudah ada di file JSON:
-
-```json
-{
-  "raw_notice_text": "",
-  "received_at": "",
-  "trigger_type": "manual"
-}
-```
-
-Hasil yang dipakai Operator 02: `case_key`, `notice`, `dropbox_case_path`, `dropbox_input_path`, `dropbox_output_path`, dan `raw_import_ids`.
+Expected sequence: Slack upload request, Native Human Review creation, Outlook upload-verification email with a `Verify Upload in Supervity` button, upload all `.json`/`.csv` files to `DROPBOX_ROOT_PATH/incoming/`, click the button, then choose `Approve - Files Uploaded`. Approval resumes the import automatically; rejection means files are not yet ready and keeps the same run waiting. Do not rerun the operator after upload.
 
 ## Operator 02: Severity Data Cleaner
 
-Jalankan manual hanya setelah Operator 01 memiliki status `IMPORTED`. Salin nilai dari output Operator 01. Dummy berikut mengasumsikan raw import pertama memiliki ID `1`; ganti `1` dengan ID aktual pada output Operator 01/Supabase.
+For independent testing, run Operator 01 first and use its actual `IMPORTED_BATCH` output. In normal Orchestrator use, do not type this input manually: Supervity maps the batch automatically.
+
+The required automatically mapped shape is:
 
 ```json
 {
-  "case_key": "DEMO-5000",
-  "notice": {
-    "supplier_id": "3022 ",
-    "item_number": " sku-el-440",
-    "notice_type": "QUALITY HOLD",
-    "received_at_raw": "19/07/2026"
-  },
-  "dropbox_case_path": "cases/CASE-DEMO-5000",
-  "dropbox_input_path": "cases/CASE-DEMO-5000/input",
-  "dropbox_output_path": "cases/CASE-DEMO-5000/output",
-  "raw_import_ids": [1]
+  "status": "IMPORTED_BATCH",
+  "cases": [
+    {
+      "case_key": "DEMO-5000",
+      "notice": {},
+      "dropbox_case_path": "cases/CASE-DEMO-5000",
+      "dropbox_input_path": "cases/CASE-DEMO-5000/input",
+      "dropbox_output_path": "cases/CASE-DEMO-5000/output",
+      "raw_import_ids": [1]
+    }
+  ]
 }
 ```
 
-Jangan menjalankan Operator 02 dengan `raw_import_ids` kosong. Operator akan mengembalikan `RAW_SOURCE_REQUIRED` apabila record raw belum ada.
+Never invent `raw_import_ids`; use the real IDs returned by Operator 01.
 
 ## Operator 03: Supervity Command 2 Orchestrator
 
-Ini adalah input yang direkomendasikan untuk menjalankan alur end-to-end. Upload dulu source file ke `incoming/`, lalu jalankan input berikut. Anda tidak mengisi `case_key` atau `raw_import_ids`; keduanya dihasilkan dan diteruskan otomatis.
+This is the recommended entry point. Paste once only:
 
 ```json
 {
@@ -81,14 +60,15 @@ Ini adalah input yang direkomendasikan untuk menjalankan alur end-to-end. Upload
 }
 ```
 
-Jika file belum ada di `incoming/`, Operator 03 mengembalikan `WAITING_FOR_SOURCE_UPLOAD`. Upload file lalu jalankan Operator 03 lagi. Operator 01 tidak mengimpor duplikat berdasarkan `case_key` dan path file sumber.
+Then follow the Slack and Outlook upload instructions, upload all source files to `incoming/`, and select `Approve - Files Uploaded` in the already-pending Native Human Review. The same workflow resumes automatically. If not all files are ready, select `Reject - Files Not Uploaded`; do not submit Operator 03 a second time.
 
 ## Field Reference
 
-| Field | Isi | Diisi oleh |
+| Field | Value | Entered By |
 |---|---|---|
-| `raw_notice_text` | Teks notifikasi tambahan, atau string kosong bila file JSON sudah lengkap | User/trigger |
-| `received_at` | Timestamp ISO 8601, atau string kosong bila sudah ada di JSON | User/trigger |
-| `trigger_type` | `manual` untuk test UI, `outlook` untuk trigger email Outlook | User/trigger |
-| `case_key` | Jangan isi di Operator 01; gunakan output Operator 01 bila Operator 02 dijalankan manual | Operator 01 |
-| `raw_import_ids` | Jangan isi di Operator 01/03; gunakan output Operator 01 bila Operator 02 dijalankan manual | Operator 01 |
+| `raw_notice_text` | Optional notice context; may be empty when source files are complete | User/trigger |
+| `received_at` | ISO 8601 timestamp or empty | User/trigger |
+| `trigger_type` | `manual` for UI tests; `outlook` for Outlook trigger | User/trigger |
+| `case_key` | Generated from each uploaded source | Operator 01 |
+| `raw_import_ids` | Generated after all source files are imported | Operator 01 |
+| `PROCUREMENT_SLACK_CHANNEL_ID` | Slack channel ID, e.g. `C0123456789`, never a channel name | Supervity configuration |
