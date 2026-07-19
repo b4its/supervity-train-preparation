@@ -1,270 +1,120 @@
-# Data Flow & Input Template — Procurement Exception Commander
+# Dropbox-First Data Flow Template
 
-Each operator is a **separate workflow** (subworkflow). The orchestrator calls them via
-Supervity subworkflow API (workflowId → runId). Below is the exact data each operator
-receives and returns.
+Use this template for a manual end-to-end test. The source JSON is intentionally dirty and must be uploaded by a human to Dropbox, not pasted into Supabase.
 
----
-
-## Raw Trigger Input (pasted by user)
+## 1. Manual Input to Operator 10
 
 ```json
 {
-  "trigger_type": "manual",
-  "input_text": "NOTICE_ID: DN-5000\nRECEIVED: 2026-06-27 10:30\nSUPPLIER_ID: 3022\nITEM: SKU-EL-440\nTYPE: quality_hold\nMESSAGE: QA hold on inbound SKU-EL-440 pending inspection.\nDELAY_DAYS: null"
+  "raw_notice_text": "NOTICE_ID: DEMO-EL-440-001\nRECEIVED: 2026-07-19 10:30\nSUPPLIER_ID: 3022\nITEM: SKU-EL-440\nTYPE: quality_hold\nMESSAGE: QA hold on inbound SKU-EL-440 pending inspection.",
+  "received_at": "2026-07-19T10:30:00+08:00",
+  "trigger_type": "manual"
 }
 ```
 
----
+Operator 01 creates:
 
-## Operator 01 — Outlook Disruption Intake
+```text
+<DROPBOX_ROOT_PATH>/cases/CASE-DEMO-EL-440-001/input/
+<DROPBOX_ROOT_PATH>/cases/CASE-DEMO-EL-440-001/output/
+```
 
-**Input:** Raw trigger input (email body or pasted JSON above)
+## 2. JSON File Uploaded by Human
 
-**Output:**
+When Operator 07 requests source data, upload one file such as `supplier-evidence.json` into the generated `input/` folder.
+
 ```json
 {
-  "case_key": "DN-5000",
-  "is_duplicate": false,
-  "notice": {
-    "notice_id": "DN-5000",
-    "supplier_id": "3022",
-    "item_number": "SKU-EL-440",
-    "notice_type": "quality_hold",
-    "received_at_raw": "2026-06-27 10:30",
-    "received_at_normalized": "2026-06-27T10:30:00+08:00",
-    "delay_days": null,
-    "message_body": "QA hold on inbound SKU-EL-440 pending inspection."
-  },
-  "data_quality_flags": [],
-  "dropbox_case_path": "cases/CASE-DN-5000.json",
-  "next_action": "RUN_DATA_QUALITY_STEWARD",
-  "supabase_inserted": true
+  "supplier_id": "3022 ",
+  "item_number": " sku-el-440",
+  "notice_type": "QUALITY HOLD",
+  "received_at": "19/07/2026",
+  "po_line_id": "90005-1",
+  "line_total": "29,197.41",
+  "on_hand_qty": "811 units",
+  "safety_stock": "354",
+  "comment": "QA hold pending inspection; raw source retained exactly."
 }
 ```
 
-**Supabase write:** `INSERT INTO disruption_incidents (case_key, status, ...)`
+## 3. Operator 02 Input: Check Source
 
----
-
-## Operator 02 — Dropbox Data Quality Steward
-
-**Input:** Output of Operator 01
-
-**Output:**
 ```json
 {
-  "case_key": "DN-5000",
-  "evidence_confidence": "HIGH",
-  "force_human_review": false,
-  "matching_record_ids": {
-    "supplier_id": "3022",
-    "po_header_ids": ["90000", "90004", "90034", "90054"],
-    "po_line_ids": ["90000-1", "90004-1", "90034-1", "90054-1"],
-    "contract_ids": ["7017"],
-    "confirmation_ids": ["OC117741", "OC339246"],
-    "inventory_items": ["SKU-EL-440"]
-  },
-  "data_quality_flags": [],
-  "dropbox_evidence_path": "cases/CASE-DN-5000-data-quality.md",
-  "next_action": "RUN_IMPACT_AND_COMPLIANCE_AND_HISTORY_IN_PARALLEL"
+  "case_key": "DEMO-EL-440-001",
+  "notice": {"supplier_id":"3022","item_number":"SKU-EL-440","notice_type":"quality_hold"},
+  "dropbox_case_path": "cases/CASE-DEMO-EL-440-001",
+  "dropbox_input_path": "cases/CASE-DEMO-EL-440-001/input",
+  "dropbox_output_path": "cases/CASE-DEMO-EL-440-001/output",
+  "mode": "CHECK_SOURCE"
 }
 ```
 
-**Supabase writes:** `UPDATE disruption_incidents SET status = 'data_quality'`
+Expected before upload:
 
----
-
-## Operator 03 — Procurement Impact Mapper
-
-**Input:** Output of Operator 01 + Operator 02 (merged)
-
-**Output:**
 ```json
 {
-  "case_key": "DN-5000",
-  "direct_line_value_at_risk_myr": "68528.77",
-  "broader_po_value_exposure_myr": "72551.35",
-  "affected_po_header_ids": ["90000"],
-  "affected_po_line_ids": ["90000-1"],
-  "confirmation_summary": {
-    "confirmed": 1,
-    "delayed": 0,
-    "at_risk": 0,
-    "delay_reasons": []
-  },
-  "inventory": {
-    "on_hand_qty": "811",
-    "safety_stock": "354",
-    "reorder_point": "571",
-    "gap_to_safety": "0",
-    "gap_to_reorder": "0",
-    "unit_cost": "3681.77"
-  },
-  "demand_pressure": {
-    "actual_minus_forecast": "UNKNOWN",
-    "actual_to_forecast_ratio": "UNKNOWN",
-    "stock_cover_days": "UNKNOWN"
-  },
-  "impact_flags": [],
-  "dropbox_impact_path": "cases/CASE-DN-5000-impact.md"
+  "source_data_status": "UPLOAD_REQUIRED",
+  "raw_import_ids": [],
+  "force_human_review": true
 }
 ```
 
-**Supabase writes:** `UPDATE disruption_incidents SET status = 'assessing'`
+## 4. Operator 02 Input: Import Raw
 
----
+After upload acknowledgement:
 
-## Operator 04 — Contract Policy Guard
-
-**Input:** Output of Operator 01 + Operator 02 (merged)
-
-**Output:**
 ```json
 {
-  "case_key": "DN-5000",
-  "supplier": {
-    "supplier_id": "3022",
-    "status": "inactive",
-    "tier": "tier-3",
-    "sole_source": false
-  },
-  "contracts": [
-    {
-      "contract_id": "7017",
-      "status": "published",
-      "expedite_allowed": "false",
-      "escalation_clause": "Standard expedite",
-      "penalty_terms": null
-    }
-  ],
-  "risk_flags": ["SUPPLIER_INACTIVE"],
-  "human_review_required": true,
-  "compliance_position": "RECOMMEND_WITH_REVIEW",
-  "dropbox_compliance_path": "cases/CASE-DN-5000-compliance.md"
+  "case_key": "DEMO-EL-440-001",
+  "notice": {"supplier_id":"3022","item_number":"SKU-EL-440","notice_type":"quality_hold"},
+  "dropbox_case_path": "cases/CASE-DEMO-EL-440-001",
+  "dropbox_input_path": "cases/CASE-DEMO-EL-440-001/input",
+  "dropbox_output_path": "cases/CASE-DEMO-EL-440-001/output",
+  "mode": "IMPORT_RAW"
 }
 ```
 
----
+Expected Supabase write:
 
-## Operator 05 — Supplier History Detector
+```text
+raw_data_imports.raw_payload = exact contents of supplier-evidence.json
+```
 
-**Input:** Output of Operator 01 + Operator 02 (merged)
+## 5. Operator 03 Input: Clean and Predict
 
-**Output:**
 ```json
 {
-  "case_key": "DN-5000",
-  "is_chronic_risk": false,
-  "disruption_count_in_window": 0,
-  "pattern_summary": "No recurring pattern detected in the lookback window."
+  "case_key": "DEMO-EL-440-001",
+  "notice": {"supplier_id":"3022","item_number":"SKU-EL-440","notice_type":"quality_hold"},
+  "dropbox_case_path": "cases/CASE-DEMO-EL-440-001",
+  "dropbox_output_path": "cases/CASE-DEMO-EL-440-001/output",
+  "data_quality": {
+    "source_data_status": "IMPORTED",
+    "raw_import_ids": [101],
+    "evidence_confidence": "HIGH"
+  }
 }
 ```
 
----
+Expected Supabase writes:
 
-## Operator 06 — Recovery Options Planner
+```text
+clean_procurement_records.clean_payload:
+  supplier_id: "3022"
+  item_number: "SKU-EL-440"
+  notice_type: "quality_hold"
+  line_total: 29197.41
+  on_hand_qty: 811
+  safety_stock: 354
 
-**Input:** Merged outputs of 01 + 02 + 03 + 04 + 05
+clean_procurement_records.normalization_flags:
+  ["TRIMMED_SUPPLIER_ID", "NORMALIZED_ITEM_CASE", "PARSED_NUMERIC_WITH_COMMA", "STRIPPED_UNIT_SUFFIX", "PARSED_DMY_DATE"]
 
-**Output:**
-```json
-{
-  "case_key": "DN-5000",
-  "recommended_option_id": "OPTION-1",
-  "review_level": "COMMANDER",
-  "estimated_avoidable_cost_myr": "UNKNOWN",
-  "options": [
-    {
-      "id": "OPTION-1",
-      "action": "Allocate existing internal inventory and monitor quality hold status",
-      "evidence": [
-        "On-hand SKU-EL-440: 811 units (above safety stock 354)",
-        "No backorder on affected PO lines",
-        "No chronic disruption pattern"
-      ],
-      "benefit": "Lowest disruption to supply; zero procurement action needed",
-      "risks": ["Quality hold may extend if inspection fails"],
-      "human_action_required": "Monitor quality inspection outcome",
-      "confidence": "HIGH"
-    }
-  ],
-  "decision_rationale": "Supplier is inactive but inventory is sufficient; no chronic risk detected.",
-  "recovery_flags": [],
-  "dropbox_recovery_path": "cases/CASE-DN-5000-recovery-options.md"
-}
+procurement_predictions.prediction_payload:
+  evidence-backed impact assessment and flags
 ```
 
-**Supabase writes:** `UPDATE disruption_incidents SET status = 'scoring'`
+## Final Rule
 
----
-
-## Rules Engine — Procurement Exception Routing Policy
-
-**Input:** Evidence confidence + supplier status + tier + all risk flags + scores
-
-**Output:**
-```json
-{
-  "route": "HIGH",
-  "review_required": true,
-  "reviewer_level": "COMMANDER",
-  "priority": "High",
-  "score": 25,
-  "score_breakdown": [{"item":"supplier_inactive","points":15}],
-  "hard_overrides": ["SUPPLIER_INACTIVE"],
-  "reason": "Supplier status is inactive -> hard override to HIGH"
-}
-```
-
----
-
-## Operator 07 — Human Approval and Task Execution
-
-**Input:** Merged outputs of 01-06 + rules engine decision
-
-**Output (approved):**
-```json
-{
-  "case_key": "DN-5000",
-  "task_id": "AT-DN-5000",
-  "review_required": true,
-  "review_status": "APPROVED",
-  "reviewer": "procurement_commander",
-  "decision": "approve_recommended_option",
-  "selected_option_id": "OPTION-1",
-  "next_action": "TASK_CREATED",
-  "supabase_status_updated": true,
-  "slack_notification_sent": true,
-  "outlook_task_sent": true
-}
-```
-
-**Supabase writes:** `INSERT INTO action_tasks` + `UPDATE disruption_incidents SET status = 'awaiting_execution'`
-
----
-
-## Operator 08 — Recovery Closeout Reporter
-
-**Input:** Output of 07 + completed action_tasks record from Supabase
-
-**Output:**
-```json
-{
-  "case_key": "DN-5000",
-  "case_status": "CLOSED",
-  "task_id": "AT-DN-5000",
-  "time_to_triage_hours": "0.5",
-  "time_to_decision_hours": "2.3",
-  "time_to_recovery_hours": "26.4",
-  "estimated_avoidable_cost_myr": "UNKNOWN",
-  "direct_line_value_at_risk_myr": "68528.77",
-  "dropbox_report_path": "reports/RECOVERY-DN-5000.md",
-  "outlook_notification_sent": true,
-  "supabase_status_updated": true,
-  "slack_notification_sent": true,
-  "open_risks": []
-}
-```
-
-**Supabase writes:** `UPDATE disruption_incidents SET status = 'resolved' + metrics`
+`input/` is immutable raw evidence. `raw_data_imports` is its exact Supabase copy. Only `clean_procurement_records` may be normalized. `procurement_predictions` holds the derived result.

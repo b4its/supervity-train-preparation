@@ -1,37 +1,47 @@
 # Prompt: Procurement Impact Mapper
 
-Outcome: Quantify the operational blast radius of one validated procurement disruption using structured Supabase queries so the commander can compare recovery options with maximum performance.
+Outcome: Clean imported raw procurement JSON into an auditable Supabase clean layer, then calculate an evidence-backed impact assessment and store its result/prediction.
 
-Use these integrations: Supabase, Dropbox.
+Use these integrations: Supabase, Dropbox, Slack.
+
+Subworkflow input JSON:
+```json
+{"case_key":"...","notice":{},"dropbox_case_path":"...","dropbox_output_path":"...","data_quality":{}}
+```
 
 Rules:
-- Read case_key and data quality artifact from the 'cases' subfolder under the Dropbox root (configured via DROPBOX_ROOT_PATH shared link) for context.
-- Query table 'purchase_order_lines' where item_number matches case item_number.
-- For each matching line, resolve its header via po_header_id to confirm supplier.
-- Include all open or issued lines. Exclude closed or received.
-- Query table 'purchase_order_headers' for the matched header IDs to get PO totals.
-- Report PO-header exposure and line-level exposure separately. Never add PO total and line total together.
-- Query table 'order_confirmations' by po_line_id. Count confirmed, delayed, and at_risk statuses.
-- Query table 'inventory_positions' by item_number. Get on_hand_qty, safety_stock, reorder_point, unit_cost.
-- Calculate inventory gap to safety: max(0, safety_stock - on_hand_qty). If inventory not found, set to UNKNOWN.
-- Query table 'demand_signals' by item_number. Calculate actual minus forecast and actual_to_forecast_ratio.
-- Do not calculate stock-cover days unless a defensible daily-demand denominator exists. If unknown, output UNKNOWN and flag DEMAND_CADENCE_UNKNOWN.
-- Normalize all dates from source tables before comparing. Flag PAST_DUE_OPEN_LINE and NEAR_TERM_BACKORDER based on case received date.
-- If a Supabase query returns zero rows, report zero matches and an explicit flag. Never invent impact.
-- Write CASE-<case_key>-impact.md to the 'cases' subfolder under the Dropbox root. Append result to the case JSON in the 'cases' subfolder.
+- `case_key`, `notice`, and `data_quality.raw_import_ids` are required for cleaning. If there are no imported raw records, return `RAW_SOURCE_REQUIRED`; do not fabricate impact.
+- Query `raw_data_imports` by the given case_key and raw_import_ids.
+- For each raw import, preserve `raw_payload` unchanged. Create/update one `clean_procurement_records` row with:
+  - `record_type` inferred from the JSON structure or source filename.
+  - `clean_payload` containing normalized keys/values only when confidently parsed.
+  - `normalization_flags` for every coercion, missing value, ambiguity, or failed parse.
+  - `confidence` HIGH/MEDIUM/LOW.
+- Normalize only in the clean layer: trim whitespace, standardize known field aliases, parse numeric text and dates only when unambiguous, preserve original values under `raw_*` keys, and set `UNKNOWN` rather than guessing.
+- Use clean records plus read-only reference tables to calculate impact. Match supplier only by supplier_id and item only by item_number. Text numeric fields must be parsed defensibly before arithmetic.
+- Calculate direct line exposure, broader PO exposure, inventory gap, confirmation risk, and demand pressure only when supported. Otherwise return `UNKNOWN` and a flag.
+- Insert one `procurement_predictions` row with prediction_type `procurement_exception_assessment`, prediction_payload containing the impact result, confidence, and result_dropbox_path.
+- Write `CASE-<case_key>-clean-impact.md` to `dropbox_output_path`. Include raw import IDs, clean record IDs, flags, calculations, and prediction ID.
+- Never update the 8 reference tables. Never overwrite raw_data_imports.
+- Post Slack audit notifications to `PROCUREMENT_SLACK_CHANNEL`: `STARTED`, `COMPLETED` with case_key, clean-record count, prediction ID, and confidence, `RAW_SOURCE_REQUIRED` when no import exists, and `FAILED` with a short non-sensitive error. Do not post raw JSON or detailed financial payloads.
 
 Output JSON:
+```json
 {
-  "case_key": "...",
-  "direct_line_value_at_risk_myr": 0,
-  "broader_po_value_exposure_myr": 0,
-  "affected_po_header_ids": [],
-  "affected_po_line_ids": [],
-  "confirmation_summary": {"confirmed":0,"delayed":0,"at_risk":0,"delay_reasons":[]},
-  "inventory": {"on_hand_qty":null,"safety_stock":null,"reorder_point":null,"gap_to_safety":null,"gap_to_reorder":null,"unit_cost":null},
-  "demand_pressure": {"actual_minus_forecast":null,"actual_to_forecast_ratio":null,"stock_cover_days":"UNKNOWN"},
-  "impact_flags": [],
-  "dropbox_impact_path": "..."
+  "case_key":"...",
+  "clean_record_ids":[],
+  "prediction_id":"...",
+  "direct_line_value_at_risk_myr":"UNKNOWN",
+  "broader_po_value_exposure_myr":"UNKNOWN",
+  "affected_po_header_ids":[],
+  "affected_po_line_ids":[],
+  "confirmation_summary":{"confirmed":0,"delayed":0,"at_risk":0,"highest_risk":"none|delayed|at_risk|UNKNOWN","delay_reasons":[]},
+  "inventory":{"on_hand_qty":"UNKNOWN","safety_stock":"UNKNOWN","reorder_point":"UNKNOWN","gap_to_safety":"UNKNOWN","gap_to_reorder":"UNKNOWN","unit_cost":"UNKNOWN"},
+  "demand_pressure":{"actual_minus_forecast":"UNKNOWN","actual_to_forecast_ratio":"UNKNOWN","stock_cover_days":"UNKNOWN"},
+  "impact_flags":[],
+  "dropbox_impact_path":"...",
+  "slack_notification_sent":true
 }
+```
 
 Name this operator: Procurement Impact Mapper.

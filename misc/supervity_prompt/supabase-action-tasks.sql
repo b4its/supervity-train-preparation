@@ -1,6 +1,6 @@
 -- =============================================================
 -- Procurement Exception Commander — Supabase Schema
--- All 10 tables (8 reference + 2 project), indexes, triggers,
+-- All 13 tables (8 reference + 5 project), indexes, triggers,
 -- and RLS policies. Run in Supabase SQL Editor (service_role).
 -- Safe to re-run — uses IF EXISTS everywhere.
 -- =============================================================
@@ -205,7 +205,81 @@ CREATE TRIGGER trg_dn_updated_at
 -- =============================================================
 
 -- -------------------------------------------------------------
--- 9. disruption_incidents
+-- 9. raw_data_imports
+-- Immutable raw JSON uploaded by a human to Dropbox input/.
+-- Never normalize or overwrite raw_payload.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS raw_data_imports (
+    id                  SERIAL PRIMARY KEY,
+    case_key            TEXT NOT NULL,
+    source_file_name    TEXT NOT NULL,
+    source_dropbox_path TEXT NOT NULL,
+    raw_payload         JSONB NOT NULL,
+    import_status       TEXT NOT NULL DEFAULT 'imported',
+    import_flags        JSONB NOT NULL DEFAULT '[]'::jsonb,
+    imported_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (case_key, source_dropbox_path)
+);
+
+CREATE INDEX IF NOT EXISTS idx_rdi_case_key ON raw_data_imports(case_key);
+CREATE INDEX IF NOT EXISTS idx_rdi_status   ON raw_data_imports(import_status);
+
+CREATE TRIGGER trg_rdi_updated_at
+    BEFORE UPDATE ON raw_data_imports
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- -------------------------------------------------------------
+-- 10. clean_procurement_records
+-- Normalized records derived from raw_data_imports by Operator 03.
+-- Raw payload remains in raw_data_imports for auditability.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS clean_procurement_records (
+    id                  SERIAL PRIMARY KEY,
+    raw_import_id       INTEGER NOT NULL REFERENCES raw_data_imports(id) ON DELETE CASCADE,
+    case_key            TEXT NOT NULL,
+    record_type         TEXT NOT NULL,
+    clean_payload       JSONB NOT NULL,
+    normalization_flags JSONB NOT NULL DEFAULT '[]'::jsonb,
+    confidence          TEXT NOT NULL DEFAULT 'LOW',
+    cleaned_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (raw_import_id, record_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_cpr_case_key  ON clean_procurement_records(case_key);
+CREATE INDEX IF NOT EXISTS idx_cpr_raw_import ON clean_procurement_records(raw_import_id);
+
+CREATE TRIGGER trg_cpr_updated_at
+    BEFORE UPDATE ON clean_procurement_records
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- -------------------------------------------------------------
+-- 11. procurement_predictions
+-- Evidence-backed assessment/result derived from clean records.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS procurement_predictions (
+    id                  SERIAL PRIMARY KEY,
+    case_key            TEXT NOT NULL,
+    clean_record_id     INTEGER REFERENCES clean_procurement_records(id) ON DELETE SET NULL,
+    prediction_type     TEXT NOT NULL DEFAULT 'procurement_exception_assessment',
+    prediction_payload  JSONB NOT NULL,
+    confidence          TEXT NOT NULL DEFAULT 'LOW',
+    result_dropbox_path TEXT,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_pp_case_key ON procurement_predictions(case_key);
+
+CREATE TRIGGER trg_pp_updated_at
+    BEFORE UPDATE ON procurement_predictions
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- -------------------------------------------------------------
+-- 12. disruption_incidents
 -- Core case state machine.
 -- Status flow: intaken → data_quality → assessing → scoring
 --              → awaiting_approval → awaiting_execution → resolved
@@ -238,7 +312,7 @@ CREATE TRIGGER trg_di_updated_at
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- -------------------------------------------------------------
--- 10. action_tasks
+-- 13. action_tasks
 -- Human-action task queue. Replaces Jira.
 -- Status: pending → approved | rejected | expired | more_evidence
 --         → completed
@@ -282,6 +356,9 @@ ALTER TABLE order_confirmations    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inventory_positions    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE demand_signals         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE disruption_notices     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE raw_data_imports       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE clean_procurement_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE procurement_predictions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE disruption_incidents   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE action_tasks           ENABLE ROW LEVEL SECURITY;
 
@@ -295,7 +372,9 @@ BEGIN
             'suppliers', 'contracts', 'purchase_order_headers',
             'purchase_order_lines', 'order_confirmations',
             'inventory_positions', 'demand_signals',
-            'disruption_notices', 'disruption_incidents', 'action_tasks'
+            'disruption_notices', 'raw_data_imports',
+            'clean_procurement_records', 'procurement_predictions',
+            'disruption_incidents', 'action_tasks'
         ])
     LOOP
         EXECUTE format(

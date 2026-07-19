@@ -8,13 +8,13 @@
 | Supabase project | **INPUT** (read reference data) + **OUTPUT** (write cases & tasks) | All Supabase queries and inserts | URL + service_role key (Settings → API → service_role) |
 | Dropbox Business/Team | **INPUT** (read dedup) + **OUTPUT** (write artifacts & reports) | Artifact storage | Shared folder link (create a shared folder, copy the link) |
 | Microsoft 365 / Outlook | **INPUT** (trigger emails) + **OUTPUT** (send task/assignment emails) | Email intake & task assignment | Microsoft Graph API access |
-| Slack workspace | **OUTPUT** only (notifications) | Notifications | Incoming webhook or Bot token |
+| Slack workspace | **OUTPUT** only | Audit notifications from every operator | Incoming webhook or Bot token |
 
 ## Step 1 — Supabase Schema + Seed Data
 
 ### 1a. Create Tables
 
-Run `supabase-action-tasks.sql` in your Supabase SQL Editor (service_role). This creates **all 10 tables**:
+Run `supabase-action-tasks.sql` in your Supabase SQL Editor (service_role). This creates **all 13 tables**:
 
 | # | Table | Type | Purpose |
 |---|-------|------|---------|
@@ -28,12 +28,17 @@ Run `supabase-action-tasks.sql` in your Supabase SQL Editor (service_role). This
 | 8 | `disruption_notices` | Reference | Historical disruption records |
 | 9 | `disruption_incidents` | **Project** | Case state machine + metrics |
 | 10 | `action_tasks` | **Project** | Human-action task queue (replaces Jira) |
+| 11 | `raw_data_imports` | **Project raw** | Untouched JSON copied from Dropbox `input/` by Operator 02 |
+| 12 | `clean_procurement_records` | **Project clean** | Normalized data created by Operator 03 |
+| 13 | `procurement_predictions` | **Project result** | Assessment/prediction result created by Operator 03 |
 
 Plus: `update_updated_at_column()` trigger function, indexes on all query columns, and RLS policies for `service_role`.
 
-> **All data columns in reference tables (1-8) are TEXT** — raw/anomalous input is stored as-is. The Dropbox Data Quality Steward (operator 02) normalizes types and validates values. Numeric columns in project tables (9-10) are typed because those are written by operators after validation.
+> **All data columns in reference tables (1-8) are TEXT** — raw/anomalous seed input is stored as-is. Case-specific Dropbox JSON is stored untouched by Operator 02 in `raw_data_imports`; Operator 03 creates clean records and predictions in separate project tables.
 >
 > If you already have any of the reference tables (1-8) with different columns, drop the SQL-generated ones and keep your originals. The prompts only query the columns listed in each table definition above.
+>
+> **Schema upgrade note**: `CREATE TABLE IF NOT EXISTS` does not alter tables that already exist. Because this version adds tables 11-13, run `supabase-action-tasks-drop.sql` then rerun `supabase-action-tasks.sql` in a test/demo project, or create an explicit migration before using it with an existing project containing production data.
 
 ### 1b. Seed Reference Data
 
@@ -73,7 +78,7 @@ Reads reference data (suppliers, contracts, PO, inventory, etc.) and writes new/
 
 ### 2b. Dropbox Integration (INPUT + OUTPUT)
 
-Reads existing artifacts from `cases/` (dedup lookup) and writes new artifacts, reports, and archives. The root folder is determined by the `DROPBOX_ROOT_PATH` environment variable — a **shared folder link** (e.g., `https://www.dropbox.com/sh/abc123/xyz`). Subfolders (`cases/`, `reports/`, `archive/`) are created automatically by the operators.
+The root folder is determined by `DROPBOX_ROOT_PATH` — a **shared folder link**. Operator 01 creates `cases/CASE-<case_key>/input/` and `cases/CASE-<case_key>/output/`. Humans upload raw `.json` files only to `input/`; operators do not modify input files and write artifacts only to `output/`.
 
 | Field | Value |
 |-------|-------|
@@ -100,7 +105,7 @@ Ensure the app registration has these Microsoft Graph permissions:
 
 ### 2d. Slack Integration (OUTPUT only)
 
-Sends notification messages to the procurement channel. No data is read from Slack.
+Every Operator 01-08 posts a small audit notification when it starts, completes, waits for human action, detects a data issue, or fails. Slack never accepts decisions or approvals.
 
 | Field | Value |
 |-------|-------|
@@ -118,18 +123,24 @@ Navigate to **Build → Operators → Create New Operator**. For each operator:
 4. Connect the required integrations (click "Connect Integration" and select from the list)
 5. Click **Save**
 
+### 3b. Configure Native Subworkflow Calls
+
+The orchestrator invokes Saved Operators 01-08 using Supervity's native **Run Operator / Subworkflow** step. In each parent step, select the Saved Operator by its exact name and map the input keys from the matching `Subworkflow input JSON` block in that operator prompt.
+
+> Do not create `PEC-*` aliases, do not manually call `/workflow-runs/:runId`, and do not paste a run ID or UUID into a subworkflow field. The native Supervity step creates and tracks the child execution automatically.
+
 ### Operator List (create in order)
 
 | # | Exact Name | Prompt File | Integrations | I/O |
 |---|------------|-------------|-------------|-----|
-| 01 | `Outlook Disruption Intake` | `01-outlook-disruption-intake.md` | Outlook, Dropbox, Supabase | **IN**: Outlook email, Dropbox (dedup), Supabase (dedup) — **OUT**: Dropbox (case), Supabase (incident) |
+| 01 | `Outlook Disruption Intake` | `01-outlook-disruption-intake.md` | Outlook, Dropbox, Supabase | **IN**: raw manual text or Outlook email, Dropbox (dedup), Supabase (dedup) — **OUT**: Dropbox (case), Supabase (incident) |
 | 02 | `Dropbox Data Quality Steward` | `02-dropbox-data-quality-steward.md` | Dropbox, Supabase | **IN**: Dropbox (case), Supabase (7 reference tables) — **OUT**: Dropbox (quality artifact) |
 | 03 | `Procurement Impact Mapper` | `03-procurement-impact-mapper.md` | Supabase, Dropbox | **IN**: Supabase (PO, inventory, demand), Dropbox (case) — **OUT**: Dropbox (impact artifact) |
 | 04 | `Contract Policy Guard` | `04-contract-policy-guard.md` | Supabase, Dropbox | **IN**: Supabase (suppliers, contracts), Dropbox (case) — **OUT**: Dropbox (compliance artifact) |
 | 05 | `Supplier History Detector` | `05-supplier-history-detector.md` | Supabase | **IN**: Supabase (disruption_notices), Dropbox (case) — **OUT**: none (analysis only) |
 | 06 | `Recovery Options Planner` | `06-recovery-options-planner.md` | Supabase, Dropbox | **IN**: Supabase (inventory, confirmations), Dropbox (all prior artifacts) — **OUT**: Dropbox (options artifact) |
-| 07 | `Human Approval and Task Execution` | `07-human-approval-and-task-execution.md` | Outlook, Dropbox, Supabase, Slack | **IN**: Dropbox (case), Supabase (action_tasks) — **OUT**: Supabase (action_tasks), Outlook (task email), Slack (notification) |
-| 08 | `Recovery Closeout Reporter` | `08-recovery-closeout-reporter.md` | Dropbox, Outlook, Supabase, Slack | **IN**: Dropbox (case), Supabase (action_tasks) — **OUT**: Dropbox (report), Supabase (status), Outlook (email), Slack (notification) |
+| 07 | `Human Approval and Task Execution` | `07-human-approval-and-task-execution.md` | Outlook, Dropbox, Supabase | **IN**: Dropbox (case), Supabase (action_tasks) — **OUT**: Supabase (action_tasks), Outlook (task email) |
+| 08 | `Recovery Closeout Reporter` | `08-recovery-closeout-reporter.md` | Dropbox, Outlook, Supabase | **IN**: Dropbox (case), Supabase (action_tasks) — **OUT**: Dropbox (report), Supabase (status), Outlook (email) |
 
 > **Important**: The **Name** must match exactly. The orchestrator (`10-procurement-exception-commander.md`) references these names to call them. If the name differs, the orchestrator will fail.
 
@@ -254,10 +265,10 @@ Navigate to **Environment Variables** (Settings → Environment or within the Au
 | `PROCUREMENT_TEAM_EMAIL` | Config | `procurement@company.com` | Shared mailbox or distribution list |
 | `PROCUREMENT_MANAGER_EMAIL` | Config | `manager@company.com` | Escalation recipient |
 | `HUMAN_REVIEW_TIMEOUT_HOURS` | Config | `24` | Hours before escalation on no response |
-| `DROPBOX_ROOT_PATH` | Config | `https://www.dropbox.com/sh/abc123/xyz` | Dropbox shared folder link — root for all artifacts; subfolders `cases/`, `reports/`, `archive/` are created automatically |
-| `PROCUREMENT_SLACK_CHANNEL` | Config | `#procurement-alerts` | Slack channel for notifications |
+| `DROPBOX_ROOT_PATH` | Config | `https://www.dropbox.com/sh/abc123/xyz` | Dropbox shared folder link — Operator 01 creates `cases/CASE-<case_key>/input/` and `output/` |
 | `LOOKBACK_DAYS` | Config | `90` | Days to look back for chronic pattern detection |
 | `CHRONIC_THRESHOLD` | Config | `3` | Number of disruptions in window to qualify as chronic |
+| `PROCUREMENT_SLACK_CHANNEL` | Config | `#procurement-alerts` | Channel for process audit notifications from Operators 01-08 |
 
 ## Step 6 — Create the Orchestrator (Auto App)
 
@@ -265,7 +276,7 @@ Navigate to **Build → Auto Apps → Create New Auto App**.
 
 1. Name: `Procurement Exception Commander - V2`
 2. Set timezone: **Asia/Kuala_Lumpur**
-3. Architecture: This is the **orchestrator**. Each of the 8 operators below is a **separate workflow** (Auto App or Operator). The orchestrator calls them via Supervity subworkflow API (workflowId → runId). The rules engine runs inline.
+3. Architecture: This is the **orchestrator**. It calls Saved Operators 01-08 via native Supervity subworkflow steps. Operator 09 runs as the inline Rules step.
 4. See `data-flow-input-template.md` for the exact input/output JSON of every operator, including dummy data for testing.
 
 ### Workflow Steps
@@ -298,32 +309,47 @@ Reads from Outlook (incoming email), Dropbox (dedup lookup), Supabase (dedup loo
 | Input | From trigger |
 | On duplicate | End flow: COMPLETED_DUPLICATE |
 
-#### Step C — Operator: Dropbox Data Quality Steward (INPUT + OUTPUT)
+#### Step C — Operator: Dropbox Data Quality Steward (Source Check / Raw Import)
 
-Reads from Dropbox (case JSON) and Supabase (7 reference tables). Writes to Dropbox (data quality artifact).
+Reads the case `input/` folder. It first checks whether human source JSON exists, then imports valid JSON unchanged into `raw_data_imports` only after upload.
 
 | Setting | Value |
 |---------|-------|
 | Operator | `Dropbox Data Quality Steward` |
-| Input | Output of Step B |
+| Input | Step B output + `mode=CHECK_SOURCE` |
 
-> Enable **Retry** (1 retry, 5s backoff). Update Supabase status to `data_quality`.
+> If `source_data_status=UPLOAD_REQUIRED` or `INVALID_JSON`, go to Step C-1. Otherwise continue to Step D.
 
-#### Step D — Parallel Branch: Impact + Compliance + History (INPUT + OUTPUT)
+#### Step C-1 — Human Source Upload Gate
 
-Three parallel operators, each reading from Supabase + Dropbox and writing their own artifact to Dropbox.
+Run `Human Approval and Task Execution` with `mode=SOURCE_UPLOAD_REQUEST`.
+
+1. Show the user the exact `dropbox_input_path` from Operator 01.
+2. Require the user to upload one or more `.json` files to `cases/CASE-<case_key>/input/`.
+3. Require an acknowledgement form submission after upload.
+4. On resume, run Step C again with `mode=IMPORT_RAW`.
+5. If no valid JSON exists, remain `WAITING_FOR_SOURCE_UPLOAD`; do not proceed to cleaning or severity.
+
+#### Step D — Clean, Assess, and Predict (INPUT + OUTPUT)
+
+Run `Procurement Impact Mapper` after raw import. It reads `raw_data_imports`, writes normalized data to `clean_procurement_records`, and writes the derived result to `procurement_predictions`.
+
+| Operator | Input | Output |
+|----------|-------|--------|
+| `Procurement Impact Mapper` | Step B output + Step C `raw_import_ids` | Supabase clean records + prediction + Dropbox artifact |
+
+> Never overwrite `raw_data_imports`. Update incident status to `assessing` after a clean assessment exists.
+
+#### Step E — Parallel Compliance + History
+
+Run in parallel after Step D:
 
 | Branch | Operator | Input | Output |
 |--------|----------|-------|--------|
-| D1 | `Procurement Impact Mapper` | Step B output + Step C Dropbox path | Dropbox (impact artifact) |
-| D2 | `Contract Policy Guard` | Step B output + Step C Dropbox path | Dropbox (compliance artifact) |
-| D3 | `Supplier History Detector` | Step B output + Step C case_key | (analysis only — no external write) |
+| E1 | `Contract Policy Guard` | Intake + raw import + clean/impact output | Dropbox compliance artifact |
+| E2 | `Supplier History Detector` | Intake + case key | History analysis |
 
-> Update Supabase status to `assessing` after all branches complete.
-
-#### Step E — Merge
-
-Merge outputs of D1, D2, D3 with Step B and Step C outputs. Pass all to Step F. No external I/O.
+Merge E1/E2 with Steps B-D before Step F.
 
 #### Step F — Operator: Recovery Options Planner (INPUT + OUTPUT)
 
@@ -332,7 +358,7 @@ Reads from Supabase (inventory, confirmations) and Dropbox (all prior artifacts)
 | Setting | Value |
 |---------|-------|
 | Operator | `Recovery Options Planner` |
-| Input | Merged outputs (D1 + D2 + D3 + Step B + Step C) |
+| Input | Merged outputs (Steps B-E, including clean impact/prediction) |
 
 > Update Supabase status to `scoring`.
 
@@ -356,7 +382,7 @@ No external I/O. Evaluates data from prior operators and returns a routing decis
 
 #### Step I-1 — Operator: Human Approval and Task Execution (INPUT + OUTPUT)
 
-Reads from Dropbox (case artifacts) and Supabase (action_tasks). Writes to Supabase (action_tasks), Outlook (task email), Slack (notification).
+Reads from Dropbox (case artifacts) and Supabase (action_tasks). Writes to Supabase (action_tasks) and Outlook (task email).
 
 | Setting | Value |
 |---------|-------|
@@ -371,7 +397,7 @@ Reads from Dropbox (case artifacts) and Supabase (action_tasks). Writes to Supab
    - **Decision**: dropdown (approve recommended option / approve another listed option / reject and escalate / request more evidence)
    - **Selected Option ID**: text (optional)
    - **Reviewer Rationale**: text (required)
-4. On timeout: update Supabase status to `expired`, send Outlook escalation email, post Slack alert. **Never auto-approve.**
+4. On timeout: update Supabase status to `expired` and send Outlook escalation email. **Never auto-approve.**
 5. After submission: capture `decision`, `reviewer`, `rationale`, `timestamp`
 
 #### Step I-2 — Create Supabase Action Task (OUTPUT)
@@ -379,8 +405,7 @@ Reads from Dropbox (case artifacts) and Supabase (action_tasks). Writes to Supab
 After approval in Step I-1:
 1. Insert row into `action_tasks` (case_key, task_type='procurement_action', status='pending', assignee='procurement_owner', summary from recovery option) — **OUTPUT to Supabase**
 2. Send Outlook email to `PROCUREMENT_TEAM_EMAIL` with subject "Action Required: Procurement exception {case_key}" — **OUTPUT to Outlook**
-3. Post Slack notification — **OUTPUT to Slack**
-4. Update Supabase `disruption_incidents` status to `awaiting_execution` — **OUTPUT to Supabase**
+3. Update Supabase `disruption_incidents` status to `awaiting_execution` — **OUTPUT to Supabase**
 
 #### Step I-3 — Wait for Task Completion (INPUT)
 
@@ -390,7 +415,7 @@ The workflow waits until a human marks the `action_tasks` record as `completed`.
 
 #### Step J — Operator: Recovery Closeout Reporter (OUTPUT)
 
-Reads from Dropbox (case) and Supabase (action_tasks). Writes to Dropbox (report), Supabase (status update), Outlook (email), Slack (notification).
+Reads from Dropbox (case) and Supabase (action_tasks). Writes to Dropbox (report), Supabase (status update), and Outlook (email).
 
 | Setting | Value |
 |---------|-------|
@@ -412,7 +437,6 @@ Reads from Dropbox (case) and Supabase (action_tasks). Writes to Dropbox (report
 - [ ] Escalation path configured for timeout
 - [ ] `DROPBOX_ROOT_PATH` set to a Dropbox shared folder link (not a filesystem path)
 - [ ] All environment variables referenced correctly as `{{VARIABLE_NAME}}`
-- [ ] Slack notifications configured as supplementary only (not for decisions)
 - [ ] Error handling: partial failure allowed, continue with available data
 
 ## Step 7 — Testing
@@ -451,10 +475,9 @@ Expected: Route = HIGH (hard overrides: penalty_risk + LOW confidence) → Human
 ### Test Results
 
 Record test results in the Auto App's test run log. Verify:
-- Dropbox artifacts created in `cases/` and `reports/` subfolders under the root shared link
+- Dropbox case folders created with `input/` and `output/` under the root shared link
 - Supabase `disruption_incidents` row created and status transitions
 - Supabase `action_tasks` row created on approval
-- Slack notification sent (supplementary)
 - Outlook task assignment email sent
 
 ## Step 8 — Go Live
@@ -473,9 +496,9 @@ Record test results in the Auto App's test run log. Verify:
 | Operator not found in orchestrator | Name mismatch | Check exact name in Auto App vs saved operator name |
 | Supabase query returns 0 rows | Missing table or wrong table name | Verify table name in Supabase; update prompt if needed |
 | Human Review form not appearing | is_human_input_step not enabled | Edit operator → enable Human Review step |
-| Slack notification not sent | Wrong channel name or token expired | Check `PROCUREMENT_SLACK_CHANNEL` env var and Slack integration |
 | Outlook cannot read folder | Missing Mail.Read permission | Check Azure App Registration permissions |
 | Rules engine returns unexpected route | Rule order wrong | Reorder rules: hard overrides first, then score-based |
 | Timeout but no escalation | Missing timeout handler | Configure On Timeout action in Human Review operator |
 | Parallel branch fails | Partial data | Check flag output — flow should continue with available data |
 | `action_tasks` table does not exist | Step 1 not run | Run `supabase-action-tasks.sql` in Supabase SQL Editor |
+| `Failed to GET /workflow-runs/<id>: Workflow run not found` | Parent is using a stale/guessed run ID or an old HTTP GET step | Remove the HTTP GET /workflow-runs step. Re-select the Saved Operator in the native Run Operator/Subworkflow step, use its returned output directly, and run the parent again. Do not paste IDs into the step. |

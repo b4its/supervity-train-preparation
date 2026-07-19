@@ -1,7 +1,7 @@
 -- =============================================================
 -- Procurement Exception Commander — Supabase Schema DROP
 -- Reverses supabase-action-tasks.sql completely.
--- Drops all 10 tables + triggers + policies + function.
+-- Drops all 13 tables + triggers + policies + function.
 -- Run in Supabase SQL Editor (service_role).
 -- Safe to re-run — uses IF EXISTS everywhere.
 -- Order: triggers → policies (via CASCADE) → tables → function
@@ -16,12 +16,18 @@ DROP TRIGGER IF EXISTS trg_oc_updated_at                     ON order_confirmati
 DROP TRIGGER IF EXISTS trg_ip_updated_at                     ON inventory_positions;
 DROP TRIGGER IF EXISTS trg_ds_updated_at                     ON demand_signals;
 DROP TRIGGER IF EXISTS trg_dn_updated_at                     ON disruption_notices;
+DROP TRIGGER IF EXISTS trg_rdi_updated_at                    ON raw_data_imports;
+DROP TRIGGER IF EXISTS trg_cpr_updated_at                    ON clean_procurement_records;
+DROP TRIGGER IF EXISTS trg_pp_updated_at                     ON procurement_predictions;
 DROP TRIGGER IF EXISTS trg_di_updated_at                     ON disruption_incidents;
 DROP TRIGGER IF EXISTS trg_at_updated_at                     ON action_tasks;
 
 -- Drop all tables (CASCADE drops indexes, policies, foreign keys)
 DROP TABLE IF EXISTS action_tasks           CASCADE;
 DROP TABLE IF EXISTS disruption_incidents   CASCADE;
+DROP TABLE IF EXISTS procurement_predictions CASCADE;
+DROP TABLE IF EXISTS clean_procurement_records CASCADE;
+DROP TABLE IF EXISTS raw_data_imports       CASCADE;
 DROP TABLE IF EXISTS disruption_notices     CASCADE;
 DROP TABLE IF EXISTS demand_signals         CASCADE;
 DROP TABLE IF EXISTS inventory_positions    CASCADE;

@@ -1,35 +1,41 @@
 # Prompt: Outlook Disruption Intake
 
-Outcome: Turn each new procurement disruption email in the configured Outlook folder into one deduplicated, traceable case brief so downstream operators can investigate without losing the original message.
+Outcome: Create a traceable Dropbox-first case. Operator 01 receives an email or manually pasted notice, creates the case folder under the configured Dropbox root, and does not import raw uploaded documents into Supabase.
 
-Use these integrations: Microsoft Outlook, Dropbox, Supabase.
+Use these integrations: Microsoft Outlook, Dropbox, Supabase, Slack.
+
+Subworkflow input JSON:
+```json
+{"raw_notice_text":"...","received_at":"...","trigger_type":"manual|outlook"}
+```
 
 Rules:
-- When triggered by an Outlook email: read the message from OUTLOOK_INTAKE_FOLDER.
-- When triggered manually: extract notice fields directly from the input text (no Outlook involved).
-- Generate case_key from notice_id when present. Otherwise create a deterministic key from normalized received timestamp, supplier_id, item_number, and notice_type.
-- The case_key created here is used by all downstream operators as the correlation key.
-- Watch the configured Outlook folder for messages whose subject or body indicates supplier delay, demand spike, port cut-off miss, quality hold, or a procurement exception.
-- Preserve original Outlook message metadata and body as evidence. Do not alter or delete the email.
-- Extract when present: notice_id, received_at, supplier_id, item_number, notice_type, message_body, and delay_days.
-- Normalize whitespace and case only for matching. Keep original source values in the evidence record.
-- Parse dates in ISO timestamp, DD/MM/YYYY, and Mon DD YYYY formats. If parsing fails, preserve the raw text, set the normalized value to UNKNOWN, and add DATA_DATE_UNPARSED to flags.
-- Identify item numbers by SKU pattern when possible. Join suppliers only by supplier_id, never by supplier name.
-- Before opening a case, search the 'cases' subfolder under the Dropbox root (configured via DROPBOX_ROOT_PATH shared link) for CASE-<case_key>.json and query table 'disruption_incidents' where case_key matches. If either exists, add an Outlook message reference to the existing record and stop; do not create a duplicate incident.
-- Query table 'disruption_incidents' where case_key matches. If exists, stop as duplicate.
-- Insert row into table 'disruption_incidents' with case_key, status 'intaken', received_at, and all extracted notice fields.
-- Create a structured intake artifact as CASE-<case_key>.json in the 'cases' subfolder under the Dropbox root, with raw and normalized values, data-quality flags, Outlook message reference, and status INTAKEN.
-- Do not score severity, choose a recovery action, create a supplier order, or email external parties.
+- When `trigger_type=outlook`, read the received message. When `trigger_type=manual`, parse `raw_notice_text`; no Outlook message is required.
+- Extract when present: notice_id, received_at, supplier_id, item_number, notice_type, message_body, delay_days. Preserve absent/unparseable values as `UNKNOWN`; never use `UNKNOWN-ITEM` as a real SKU.
+- Generate `case_key` from notice_id, otherwise deterministic normalized received timestamp + supplier_id + item_number + notice_type.
+- Root location is `DROPBOX_ROOT_PATH`. Create these folders if absent:
+  - `cases/CASE-<case_key>/input/` — human uploads raw `.json` files here.
+  - `cases/CASE-<case_key>/output/` — operators write artifacts here.
+- Create `cases/CASE-<case_key>/output/CASE-<case_key>.json`. It must contain the intake notice, both folder paths, source metadata, and flags.
+- Deduplicate by checking the case artifact path and `disruption_incidents.case_key`. If duplicate, return `is_duplicate=true`; do not create another case folder.
+- Insert/update only the incident envelope in `disruption_incidents`: case_key, status `awaiting_source_data`, received_at when parseable, and notice metadata. Do not insert uploaded raw document payloads into reference tables or project data tables.
+- Post Slack audit notifications to `PROCUREMENT_SLACK_CHANNEL`: `STARTED` when processing begins, `COMPLETED` with case_key and Dropbox input/output paths, `DUPLICATE` when deduplicated, and `FAILED` with a short non-sensitive error. Do not post raw email body or credentials.
+- Do not query procurement master data, clean documents, predict results, or select a recovery action.
 
 Output JSON:
+```json
 {
-  "case_key": "...",
-  "is_duplicate": false,
-  "notice": {"notice_id":"...","supplier_id":"...","item_number":"...","notice_type":"...","received_at_raw":"...","received_at_normalized":"...","delay_days":null,"message_body":"..."},
-  "data_quality_flags": [],
-  "dropbox_case_path": "...",
-  "next_action": "RUN_DATA_QUALITY_STEWARD",
-  "supabase_inserted": true
+  "case_key":"...",
+  "is_duplicate":false,
+  "notice":{"notice_id":"...","supplier_id":"...","item_number":"...","notice_type":"...","received_at_raw":"...","received_at_normalized":"...","delay_days":"UNKNOWN","message_body":"..."},
+  "dropbox_case_path":"cases/CASE-<case_key>",
+  "dropbox_input_path":"cases/CASE-<case_key>/input",
+  "dropbox_output_path":"cases/CASE-<case_key>/output",
+  "data_quality_flags":[],
+  "next_action":"REQUEST_OR_VALIDATE_SOURCE_JSON",
+  "supabase_incident_written":true,
+  "slack_notification_sent":true
 }
+```
 
 Name this operator: Outlook Disruption Intake.
