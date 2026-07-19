@@ -2,7 +2,7 @@
 
 ## One Manual Orchestrator Input
 
-Run Operator 03 once with this input. Do not provide a case key, file path, raw import ID, or intake stage.
+Run Operator 03 once with this input. Do not provide a case key, file path, raw import ID, intake stage, or **Imported Batch Payload** — that payload is the output of Operator 01 and is automatically passed by the orchestrator's "Call the sub-operator" mapping.
 
 ```json
 {

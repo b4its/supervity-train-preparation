@@ -2,6 +2,8 @@
 
 The normal workflow requires one manual submission only: start Operator 03 once, upload all source files when requested, and answer the pending Native Human Review form. Supervity resumes the same execution and automatically passes the imported batch from Operator 01 to Operator 02.
 
+**Important:** When you run Operator 03, the input form shows an "Imported Batch Payload" field. **Do not fill it manually.** This field is the output of Operator 01 and should be auto-mapped by the "Call the sub-operator" linkage. If it appears as a required manual field, the orchestration mapping is not configured correctly — see the orchestrator prompt's Step 2 instructions for fixing the mapping.
+
 ## Build Order In Supervity
 
 1. Create, test, and save `Dropbox Source File Intake and Import`.
@@ -46,7 +48,7 @@ The required automatically mapped shape is:
 }
 ```
 
-Never invent `raw_import_ids`; use the real IDs returned by Operator 01.
+Never invent `raw_import_ids`; use the real IDs returned by Operator 01. For material severity results, Operator 02 creates Native Human Review and emails `PROCUREMENT_MANAGER_EMAIL` a `Review Decision in Supervity` button linked to the generated review. The manager makes every decision inside Supervity.
 
 ## Operator 03: Supervity Command 2 Orchestrator
 

@@ -17,6 +17,9 @@ Minimal Dropbox-first workflow with exactly **2 operators** and **1 orchestrator
 | `00-command2-schema.sql` | Self-contained dataset-aligned Supabase schema |
 | `00-command2-drop.sql` | Demo/test reset only |
 | `01-dataset-import.md` | CSV import order and verification for `operations/dataset/csv/` |
+| `02-supervity-connection-rls.sql` | RLS access for a native Supervity connection using `authenticated` |
+| `03-command2-diagnostic.sql` | Diagnostic — run in Supabase to verify tables, RLS, grants, and live INSERTs |
+| `04-command2-grant-current-role.sql` | Fix — grants ALL privileges + RLS policies for authenticated and current role when Supabase writes return `42501` |
 | `input-guide.md` | Dummy inputs for Operators 01-03 and input-field reference |
 | `test-data.md` | Manual run input and dirty JSON upload example |
 | `setup.md` | End-to-end Supervity configuration |
@@ -65,8 +68,9 @@ procurement_predictions
 2. Operator 01 waits in the same running workflow at Native Human Review. The user uploads all `.json` and/or `.csv` sources to `incoming/`, without entering case keys, then chooses `Approve - Files Uploaded`. Reject keeps the workflow waiting.
 3. The same workflow resumes; Operator 01 reads every supported new source, generates case keys, creates case folders, and writes raw imports to `raw_data_imports`.
 4. Operator 02 cleans every imported JSON document and CSV row into `clean_procurement_records`.
-5. Operator 02 calculates severity, writes evidence-backed predictions to `procurement_predictions`, and sends `BATCH_PREDICTED_AND_AUDITED` to Slack.
-6. Slack never confirms uploads or approves decisions; Native Human Review is the confirmation/approval channel.
+5. For material cases, Operator 02 creates a Native Human Review and sends Outlook with a `Review Decision in Supervity` button that opens the generated review link.
+6. Operator 02 calculates severity, writes evidence-backed predictions to `procurement_predictions`, and sends `BATCH_PREDICTED_AND_AUDITED` to Slack.
+7. Slack never confirms uploads or approves decisions. Outlook only delivers the native review links; Native Human Review is the confirmation/approval channel.
 
 ## Dummy Inputs
 
