@@ -17,10 +17,11 @@ Use these saved operators exactly by name:
 Use the saved rule exactly by name: "Procurement Exception Routing Policy"
 
 Workflow trigger and input:
-- Primary trigger: a new Outlook message in OUTLOOK_INTAKE_FOLDER that appears to be a procurement disruption.
-- Allow a manual run for demo with a pasted disruption notice or a selected Dropbox input file.
+- Auto trigger: a new Outlook message in OUTLOOK_INTAKE_FOLDER that appears to be a procurement disruption.
+- Manual trigger (demo): user pastes disruption notice text into the Run dialog.
+- The trigger passes the raw input (email body or pasted text) to Operator 01.
+- Operator 01 generates the case_key. All subsequent steps carry it as the idempotency key.
 - Set the workflow timezone explicitly to Asia/Kuala_Lumpur.
-- Each run must carry case_key as its idempotency and correlation key.
 
 Required deterministic workflow per case:
 1. Run Outlook Disruption Intake.

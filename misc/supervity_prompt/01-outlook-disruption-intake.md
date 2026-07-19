@@ -5,13 +5,16 @@ Outcome: Turn each new procurement disruption email in the configured Outlook fo
 Use these integrations: Microsoft Outlook, Dropbox, Supabase.
 
 Rules:
+- When triggered by an Outlook email: read the message from OUTLOOK_INTAKE_FOLDER.
+- When triggered manually: extract notice fields directly from the input text (no Outlook involved).
+- Generate case_key from notice_id when present. Otherwise create a deterministic key from normalized received timestamp, supplier_id, item_number, and notice_type.
+- The case_key created here is used by all downstream operators as the correlation key.
 - Watch the configured Outlook folder for messages whose subject or body indicates supplier delay, demand spike, port cut-off miss, quality hold, or a procurement exception.
 - Preserve original Outlook message metadata and body as evidence. Do not alter or delete the email.
 - Extract when present: notice_id, received_at, supplier_id, item_number, notice_type, message_body, and delay_days.
 - Normalize whitespace and case only for matching. Keep original source values in the evidence record.
 - Parse dates in ISO timestamp, DD/MM/YYYY, and Mon DD YYYY formats. If parsing fails, preserve the raw text, set the normalized value to UNKNOWN, and add DATA_DATE_UNPARSED to flags.
 - Identify item numbers by SKU pattern when possible. Join suppliers only by supplier_id, never by supplier name.
-- Create case_key as notice_id when it exists. Otherwise create a deterministic key from normalized received timestamp, supplier_id, item_number, and notice_type.
 - Before opening a case, search the 'cases' subfolder under the Dropbox root (configured via DROPBOX_ROOT_PATH shared link) for CASE-<case_key>.json and query table 'disruption_incidents' where case_key matches. If either exists, add an Outlook message reference to the existing record and stop; do not create a duplicate incident.
 - Query table 'disruption_incidents' where case_key matches. If exists, stop as duplicate.
 - Insert row into table 'disruption_incidents' with case_key, status 'intaken', received_at, and all extracted notice fields.
