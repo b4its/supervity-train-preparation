@@ -1,10 +1,12 @@
 # Prompt: Procurement Exception Commander
 
-Outcome: For every new procurement disruption, create an evidence-backed recovery case that maps impact, compliance, and history in parallel, routes any material decision through Supervity Human Review, creates accountable action tasks in Supabase, and reports time-to-recovery and supported avoidable-cost evidence — with maximum performance via Supabase structured queries and configurable routing rules.
+Outcome: For every new procurement disruption, orchestrate 8 subworkflows (operators) and 1 rules engine to create an evidence-backed recovery case — calling each via Supervity subworkflow API (workflowId → runId).
 
-Build an Auto App named "Procurement Exception Commander - V2". Use only the connected Dropbox, Microsoft Outlook, Supabase, and Slack integrations plus Supervity native Human Review. Do not use local files, undocumented systems, or unconnected tools.
+Architecture: This Auto App is the **orchestrator**. Each operator below is a **separate workflow** (subworkflow). The orchestrator calls them by workflowId, receives a runId, and waits for completion before proceeding. The rules engine runs inline (no subworkflow).
 
-Use these saved operators exactly by name:
+Use only the connected Dropbox, Microsoft Outlook, Supabase, and Slack integrations plus Supervity native Human Review. Do not use local files, undocumented systems, or unconnected tools.
+
+Save these as separate workflows (one Auto App or Operator each):
 1. Outlook Disruption Intake
 2. Dropbox Data Quality Steward
 3. Procurement Impact Mapper
@@ -14,62 +16,87 @@ Use these saved operators exactly by name:
 7. Human Approval and Task Execution
 8. Recovery Closeout Reporter
 
-Use the saved rule exactly by name: "Procurement Exception Routing Policy"
+Save the rules engine as: "Procurement Exception Routing Policy"
 
-Workflow trigger and input:
-- Auto trigger: a new Outlook message in OUTLOOK_INTAKE_FOLDER that appears to be a procurement disruption.
+Trigger and input:
+- Auto trigger: a new Outlook message in OUTLOOK_INTAKE_FOLDER.
 - Manual trigger (demo): user pastes disruption notice text into the Run dialog.
-- The trigger passes the raw input (email body or pasted text) to Operator 01.
-- Operator 01 generates the case_key. All subsequent steps carry it as the idempotency key.
-- Set the workflow timezone explicitly to Asia/Kuala_Lumpur.
+- The trigger passes the raw input (email body or pasted text) to subworkflow 01.
+- Subworkflow 01 generates the case_key. All subsequent subworkflows carry it.
+- Set timezone to Asia/Kuala_Lumpur.
 
-Required deterministic workflow per case:
-1. Run Outlook Disruption Intake.
-   - If duplicate, add evidence to the existing case and end as COMPLETED_DUPLICATE. Update Supabase accordingly. Do not create a duplicate task.
-   - On success, update Supabase disruption_incidents status to 'intaken'.
-2. Run Dropbox Data Quality Steward.
-   - Validates all case relationships against Supabase. If confidence is LOW, force human review downstream.
-   - Update Supabase status to 'data_quality'.
-3. Run Procurement Impact Mapper, Contract Policy Guard, and Supplier History Detector in parallel. These query Supabase tables independently — the visual workflow must display them as parallel branches for maximum performance.
-   - Update Supabase status to 'assessing'.
-4. Merge outputs with intake and data-quality output. Run Recovery Options Planner.
-   - Update Supabase status to 'scoring' with the route decision and metrics.
-5. Evaluate using the saved rule "Procurement Exception Routing Policy":
-   - LOW: high data confidence, no supplier or contract or chronic risk, no material exposure. Run Closeout Reporter directly.
-   - MEDIUM: evidence-backed option exists but requires human procurement owner. Run Human Approval and Task Execution with COMMANDER review.
-   - HIGH: any hard override or score above threshold. Run Human Approval and Task Execution with correct reviewer level.
-6. Human Approval and Task Execution must use a native Supervity Human Review step. Native review form is mandatory. Slack and Outlook are notification channels only — the decision must go through the form.
-   - Update Supabase status to 'awaiting_approval'. On timeout, escalate but never auto-approve.
-7. After approval, insert row into Supabase 'action_tasks' table and send task assignment via Outlook. Do not claim a PO was changed, an order expedited, inventory transferred, or a supplier contacted.
-8. Run Recovery Closeout Reporter only after 'action_tasks' status is 'completed'. Rejected or expired cases remain open and receive internal status notifications.
-   - Update Supabase status to 'resolved' with all final metrics on close.
+Subworkflow orchestration (each step calls a subworkflow by workflowId):
+
+1. Call subworkflow "Outlook Disruption Intake" with raw input.
+   - If duplicate → COMPLETED_DUPLICATE. Do not proceed.
+   - On success → update Supabase status to 'intaken'.
+   - Output: case_key, notice data, dropbox_case_path.
+
+2. Call subworkflow "Dropbox Data Quality Steward" with output of step 1.
+   - On success → update Supabase status to 'data_quality'.
+   - Output: evidence_confidence, matching_record_ids.
+
+3. Call three subworkflows in **parallel** (each gets output of step 1 + step 2):
+   - "Procurement Impact Mapper"
+   - "Contract Policy Guard"
+   - "Supplier History Detector"
+   - Wait for all three to complete before proceeding.
+   - On success → update Supabase status to 'assessing'.
+   - Merge all three outputs.
+
+4. Call subworkflow "Recovery Options Planner" with merged data (steps 1-3).
+   - On success → update Supabase status to 'scoring'.
+   - Output: recovery options, review_level, estimated_avoidable_cost.
+
+5. Evaluate using inline rules engine "Procurement Exception Routing Policy":
+   - Input: evidence_confidence, supplier_status, all risk flags, scores.
+   - Output: route (LOW | MEDIUM | HIGH), reviewer_level, priority.
+
+6. Route based on severity:
+   - **LOW** → skip step 7. Go directly to step 8.
+   - **MEDIUM** → call subworkflow "Human Approval and Task Execution" with COMMANDER review.
+   - **HIGH** → call subworkflow "Human Approval and Task Execution" with appropriate reviewer.
+   - Each route is a separate conditional branch calling a subworkflow.
+
+7. (only for MEDIUM/HIGH) Subworkflow "Human Approval and Task Execution":
+   - Must use native Supervity Human Review step (is_human_input_step = true).
+   - Native review form is mandatory. Slack and Outlook are notification only.
+   - Decision captured via form: approve / reject / more_evidence.
+   - On timeout → escalate via Outlook, never auto-approve.
+   - On approval → insert action_tasks row in Supabase + send Outlook task email.
+   - Update Supabase status to 'awaiting_approval' → 'awaiting_execution'.
+   - Wait for action_tasks status to become 'completed' (poll Supabase).
+   - Only proceed to step 8 after completion.
+
+8. Call subworkflow "Recovery Closeout Reporter" with data from all prior steps.
+   - Query action_tasks where status = 'completed'. If not found, return NOT_CLOSED.
+   - On success → update Supabase status to 'resolved' with final metrics.
+   - Output: report path, metrics, final status.
 
 Reliability and governance:
-- Every external integration action must retry once with backoff on transient failure. If it fails again, capture error context in Outlook and Slack; do not fail silently.
-- Validate integration access before first live run. If any integration is disconnected or lacks permission, stop safely with a clear configuration error.
-- Use least privilege. Do not store passwords, API keys, or recipient addresses in prompts; use Supervity integration credentials and environment variables.
-- Use native workflow logs and the Auto Manager Console to show inputs, step outputs, retries, Human Review status, task records, Dropbox artifacts, and final metrics.
-- Preserve raw data. All derived records must go to the 'cases' or 'reports' subfolder under the Dropbox root and reference their source files.
-- If the reviewer times out, escalate via Outlook. Never auto-approve.
-- Partial data is acceptable. If one parallel branch fails partially, proceed with available data and flag the gap.
+- Every subworkflow call must retry once with backoff. Log failures.
+- Validate all integration access before first live run.
+- Partial data is acceptable. If one parallel branch fails, proceed with available data and flag the gap.
+- Preserve raw data. All artifacts go to 'cases' or 'reports' subfolder under Dropbox root.
+- Never auto-approve on timeout. Escalate via Outlook.
 
-Configuration variables to request if missing:
+Configuration variables:
 OUTLOOK_INTAKE_FOLDER, PROCUREMENT_TEAM_EMAIL, PROCUREMENT_MANAGER_EMAIL, HUMAN_REVIEW_TIMEOUT_HOURS, DROPBOX_ROOT_PATH, PROCUREMENT_SLACK_CHANNEL, LOOKBACK_DAYS, CHRONIC_THRESHOLD.
 
-Final output shown in the Auto Manager Console:
+Final output:
 {
   "case_key": "...",
-  "run_status": "COMPLETED|WAITING_FOR_HUMAN|ESCALATED|COMPLETED_DUPLICATE",
+  "run_status": "COMPLETED|WAITING_FOR_HUMAN|ESCALATED|COMPLETED_DUPLICATE|NOT_CLOSED",
   "severity_route": "LOW|MEDIUM|HIGH",
   "task_id": "...",
   "dropbox_case_path": "...",
   "human_review_status": "NOT_REQUIRED|PENDING|APPROVED|REJECTED|EXPIRED",
   "direct_line_value_at_risk_myr": 95000,
   "estimated_avoidable_cost_myr": 47500,
-  "time_to_triage_hours": 0.3,
-  "time_to_decision_hours": 1.8,
+  "time_to_triage_hours": 0.5,
+  "time_to_decision_hours": 2.3,
   "time_to_recovery_hours": 26.4,
   "open_risks": []
 }
 
-Present the full plan, integrations, approval form, branching rules, retries, parallel operators, History Detector, Dirty Data handling, and expected outputs for review. Ask only for missing configuration values. Wait for explicit "yes, proceed" before saving or running the workflow.
+Present the full plan with subworkflow architecture, severity routing, and parallel branches for review. Ask only for missing configuration values. Wait for explicit "yes, proceed" before saving.

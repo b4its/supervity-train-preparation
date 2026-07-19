@@ -265,7 +265,8 @@ Navigate to **Build → Auto Apps → Create New Auto App**.
 
 1. Name: `Procurement Exception Commander - V2`
 2. Set timezone: **Asia/Kuala_Lumpur**
-3. Define the workflow step by step using the visual builder:
+3. Architecture: This is the **orchestrator**. Each of the 8 operators below is a **separate workflow** (Auto App or Operator). The orchestrator calls them via Supervity subworkflow API (workflowId → runId). The rules engine runs inline.
+4. See `data-flow-input-template.md` for the exact input/output JSON of every operator, including dummy data for testing.
 
 ### Workflow Steps
 
