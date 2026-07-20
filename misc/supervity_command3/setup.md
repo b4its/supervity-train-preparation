@@ -11,12 +11,12 @@
 Attach authenticated native connections to every saved operator that uses them:
 
 - Dropbox
-- Supabase
+- Supabase (OAuth — do NOT use Custom URL+API key mode)
 - Slack
 - Microsoft Outlook
 - Supervity Native Human Review
 
-Never expose Supabase URL/key, Slack token, or Outlook credentials in a prompt or input field.
+Make sure every operator's Supabase nodes use the OAuth-connected Supabase integration from the connection dropdown, not Custom/manual mode. Never expose Supabase URL/key, Slack token, or Outlook credentials in a prompt or input field.
 
 ## 3. Build Operators
 

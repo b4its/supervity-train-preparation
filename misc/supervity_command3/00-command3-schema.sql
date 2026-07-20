@@ -91,10 +91,10 @@ CREATE TABLE IF NOT EXISTS raw_data_imports (
     source_file_name TEXT NOT NULL,
     source_dropbox_path TEXT NOT NULL,
     source_copied_dropbox_path TEXT,
-    source_file_format TEXT NOT NULL,
+    source_file_format TEXT,
     source_file_size_bytes BIGINT,
     source_content_sha256 TEXT,
-    raw_file_text TEXT NOT NULL,
+    raw_file_text TEXT,
     raw_payload JSONB NOT NULL,
     source_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     import_status TEXT NOT NULL DEFAULT 'imported',
@@ -104,7 +104,9 @@ CREATE TABLE IF NOT EXISTS raw_data_imports (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (case_key, source_dropbox_path)
 );
--- Adds explicit raw-file evidence columns when upgrading an earlier Command3 schema.
+-- Adds/migrates raw-file evidence columns when upgrading from an earlier schema.
+-- Supervity native Dropbox download may not return file content as text,
+-- so raw_file_text and source_file_format are nullable.
 ALTER TABLE raw_data_imports
     ADD COLUMN IF NOT EXISTS source_copied_dropbox_path TEXT,
     ADD COLUMN IF NOT EXISTS source_file_format TEXT,
@@ -112,6 +114,8 @@ ALTER TABLE raw_data_imports
     ADD COLUMN IF NOT EXISTS source_content_sha256 TEXT,
     ADD COLUMN IF NOT EXISTS raw_file_text TEXT,
     ADD COLUMN IF NOT EXISTS source_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE raw_data_imports ALTER COLUMN raw_file_text DROP NOT NULL;
+ALTER TABLE raw_data_imports ALTER COLUMN source_file_format DROP NOT NULL;
 CREATE TABLE IF NOT EXISTS clean_procurement_records (
     id BIGSERIAL PRIMARY KEY,
     raw_import_id BIGINT NOT NULL REFERENCES raw_data_imports(id) ON DELETE CASCADE,
